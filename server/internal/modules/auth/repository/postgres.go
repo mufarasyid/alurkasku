@@ -40,7 +40,7 @@ func (r *PostgresRepository) Delete(token string) error {
 	return err
 }
 
-func (r *PostgresRepository) DeleteByUserID(userID uint64) error {
+func (r *PostgresRepository) DeleteByUserID(userID string) error {
 	_, err := r.db.Exec(`DELETE FROM refresh_tokens WHERE user_id = $1`, userID)
 	return err
 }

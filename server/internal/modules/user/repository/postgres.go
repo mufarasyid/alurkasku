@@ -23,7 +23,7 @@ func (r *PostgresRepository) Create(u *domain.User) error {
 	return r.db.QueryRow(query, u.Email, u.Password, u.Name).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
 
-func (r *PostgresRepository) GetByID(id uint64) (*domain.User, error) {
+func (r *PostgresRepository) GetByID(id string) (*domain.User, error) {
 	query := `SELECT id, email, password, name, created_at, updated_at, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL`
 	u := &domain.User{}
 	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
@@ -58,7 +58,7 @@ func (r *PostgresRepository) Update(u *domain.User) error {
 	return r.db.QueryRow(query, u.Email, u.Name, u.ID).Scan(&u.UpdatedAt)
 }
 
-func (r *PostgresRepository) Delete(id uint64) error {
+func (r *PostgresRepository) Delete(id string) error {
 	query := `UPDATE users SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
 	result, err := r.db.Exec(query, id)
 	if err != nil {

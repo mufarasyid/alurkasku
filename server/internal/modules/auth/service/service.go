@@ -104,13 +104,25 @@ func (s *Service) Refresh(req domain.RefreshRequest) (*domain.TokenPair, error) 
 }
 
 func (s *Service) Logout(refreshToken string) error {
+	if refreshToken == "" {
+		return apperror.BadRequest("refresh token is required")
+	}
+
+	stored, err := s.authRepo.GetByToken(refreshToken)
+	if err != nil {
+		return apperror.Internal("failed to validate refresh token", err)
+	}
+	if stored == nil {
+		return apperror.Unauthorized("invalid refresh token")
+	}
+
 	if err := s.authRepo.Delete(refreshToken); err != nil {
 		return apperror.Internal("failed to logout", err)
 	}
 	return nil
 }
 
-func (s *Service) issueTokens(userID uint64, email, name string) (*domain.AuthResponse, error) {
+func (s *Service) issueTokens(userID string, email, name string) (*domain.AuthResponse, error) {
 	pair, err := s.issueTokenPair(userID, email, name)
 	if err != nil {
 		return nil, err
@@ -122,7 +134,7 @@ func (s *Service) issueTokens(userID uint64, email, name string) (*domain.AuthRe
 	}, nil
 }
 
-func (s *Service) issueTokenPair(userID uint64, email, name string) (*domain.TokenPair, error) {
+func (s *Service) issueTokenPair(userID string, email, name string) (*domain.TokenPair, error) {
 	accessToken, err := s.jwtMgr.GenerateAccessToken(userID, email)
 	if err != nil {
 		return nil, apperror.Internal("failed to generate access token", err)

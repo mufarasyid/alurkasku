@@ -7,7 +7,7 @@ import (
 )
 
 type Claims struct {
-	UserID uint64 `json:"user_id"`
+	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	jwt.RegisteredClaims
 }
@@ -26,7 +26,7 @@ func NewManager(secret string, accessExpiry, refreshExpiry time.Duration) *Manag
 	}
 }
 
-func (m *Manager) GenerateAccessToken(userID uint64, email string) (string, error) {
+func (m *Manager) GenerateAccessToken(userID string, email string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,
@@ -43,7 +43,7 @@ func (m *Manager) GenerateAccessToken(userID uint64, email string) (string, erro
 	return token.SignedString([]byte(m.secret))
 }
 
-func (m *Manager) GenerateRefreshToken(userID uint64, email string) (string, error) {
+func (m *Manager) GenerateRefreshToken(userID string, email string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,

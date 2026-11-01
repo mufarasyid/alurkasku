@@ -6,6 +6,7 @@ import (
 
 	"github.com/mufarasyid/alurkasku/server/internal/modules/auth/domain"
 	"github.com/mufarasyid/alurkasku/server/internal/modules/auth/service"
+	"github.com/mufarasyid/alurkasku/server/internal/modules/auth/validate"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/apperror"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/response"
 )
@@ -25,6 +26,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validate.Register(req); err != nil {
+		writeError(w, err, http.StatusBadRequest)
+		return
+	}
+
 	auth, err := h.svc.Register(req)
 	if err != nil {
 		writeError(w, err, errHTTPStatus(err))
@@ -38,6 +44,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req domain.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, apperror.BadRequest("invalid request body"), http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Login(req); err != nil {
+		writeError(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -57,6 +68,11 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validate.Refresh(req); err != nil {
+		writeError(w, err, http.StatusBadRequest)
+		return
+	}
+
 	tokens, err := h.svc.Refresh(req)
 	if err != nil {
 		writeError(w, err, errHTTPStatus(err))
@@ -67,9 +83,14 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	var req domain.RefreshRequest
+	var req domain.LogoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, apperror.BadRequest("invalid request body"), http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Logout(req); err != nil {
+		writeError(w, err, http.StatusBadRequest)
 		return
 	}
 

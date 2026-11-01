@@ -33,7 +33,7 @@ func (s *Service) CreateUser(req domain.CreateUserRequest) (*domain.User, error)
 	return u, nil
 }
 
-func (s *Service) GetUser(id uint64) (*domain.User, error) {
+func (s *Service) GetUser(id string) (*domain.User, error) {
 	u, err := s.repo.GetByID(id)
 	if err != nil {
 		return nil, apperror.Internal("failed to get user", err)
@@ -55,7 +55,7 @@ func (s *Service) GetUserByEmail(email string) (*domain.User, error) {
 	return u, nil
 }
 
-func (s *Service) UpdateUser(id uint64, req domain.UpdateUserRequest) (*domain.User, error) {
+func (s *Service) UpdateUser(id string, req domain.UpdateUserRequest) (*domain.User, error) {
 	u, err := s.GetUser(id)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (s *Service) UpdateUser(id uint64, req domain.UpdateUserRequest) (*domain.U
 	return u, nil
 }
 
-func (s *Service) DeleteUser(id uint64) error {
+func (s *Service) DeleteUser(id string) error {
 	if err := s.repo.Delete(id); err != nil {
 		return apperror.Internal("failed to delete user", err)
 	}

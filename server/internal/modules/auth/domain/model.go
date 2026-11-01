@@ -17,6 +17,10 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -29,14 +33,14 @@ type AuthResponse struct {
 }
 
 type UserProfile struct {
-	ID    uint64 `json:"id"`
+	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name"`
 }
 
 type RefreshToken struct {
-	ID        uint64    `json:"id"`
-	UserID    uint64    `json:"user_id"`
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
 	Token     string    `json:"-"`
 	ExpiresAt time.Time `json:"-"`
 	CreatedAt time.Time `json:"created_at"`

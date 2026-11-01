@@ -5,7 +5,7 @@ import (
 )
 
 type User struct {
-	ID        uint64     `json:"id"`
+	ID        string     `json:"id"`
 	Email     string     `json:"email"`
 	Password  string     `json:"-"`
 	Name      string     `json:"name"`
@@ -26,7 +26,7 @@ type UpdateUserRequest struct {
 }
 
 type UserResponse struct {
-	ID        uint64    `json:"id"`
+	ID        string    `json:"id"`
 	Email     string    `json:"email"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`

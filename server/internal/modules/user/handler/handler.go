@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -117,8 +118,11 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }
 
-func parseID(s string) (uint64, error) {
-	return strconv.ParseUint(s, 10, 64)
+func parseID(s string) (string, error) {
+	if s == "" {
+		return "", fmt.Errorf("empty id")
+	}
+	return s, nil
 }
 
 func errHTTPStatus(err error) int {
