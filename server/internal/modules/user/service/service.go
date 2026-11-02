@@ -83,6 +83,9 @@ func (s *Service) UpdateUser(id string, req domain.UpdateUserRequest) (*domain.U
 
 func (s *Service) DeleteUser(id string) error {
 	if err := s.repo.Delete(id); err != nil {
+		if appErr, ok := err.(*apperror.AppError); ok {
+			return appErr
+		}
 		return apperror.Internal("failed to delete user", err)
 	}
 	return nil

@@ -2,9 +2,9 @@ package repository
 
 import (
 	"database/sql"
-	"fmt"
 
 	"github.com/mufarasyid/alurkasku/server/internal/modules/user/domain"
+	"github.com/mufarasyid/alurkasku/server/internal/shared/apperror"
 )
 
 type PostgresRepository struct {
@@ -69,7 +69,7 @@ func (r *PostgresRepository) Delete(id string) error {
 		return err
 	}
 	if rows == 0 {
-		return fmt.Errorf("user not found")
+		return apperror.NotFound("user not found")
 	}
 	return nil
 }

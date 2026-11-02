@@ -15,7 +15,7 @@ func Register(req domain.RegisterRequest) error {
 	}
 	if strings.TrimSpace(req.Email) == "" {
 		missing = append(missing, "email")
-	} else if !strings.Contains(req.Email, "@") {
+	} else if !isValidEmail(req.Email) {
 		return apperror.BadRequest("invalid email format")
 	}
 	if strings.TrimSpace(req.Password) == "" {
@@ -31,6 +31,8 @@ func Login(req domain.LoginRequest) error {
 	var missing []string
 	if strings.TrimSpace(req.Email) == "" {
 		missing = append(missing, "email")
+	} else if !isValidEmail(req.Email) {
+		return apperror.BadRequest("invalid email format")
 	}
 	if strings.TrimSpace(req.Password) == "" {
 		missing = append(missing, "password")
@@ -53,4 +55,13 @@ func Logout(req domain.LogoutRequest) error {
 		return apperror.BadRequest("field wajib diisi: refresh_token")
 	}
 	return nil
+}
+
+func isValidEmail(email string) bool {
+	email = strings.TrimSpace(email)
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return false
+	}
+	return true
 }

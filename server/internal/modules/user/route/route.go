@@ -8,12 +8,12 @@ import (
 	"github.com/mufarasyid/alurkasku/server/internal/router"
 )
 
-func Setup(r *router.Router, svc *service.Service, logMiddleware func(http.Handler) http.Handler) {
+func Setup(r *router.Router, svc *service.Service, logMiddleware, authMiddleware func(http.Handler) http.Handler) {
 	h := handler.New(svc)
 
-	r.Handle("POST /api/v1/users", logMiddleware(http.HandlerFunc(h.CreateUser)))
-	r.Handle("GET /api/v1/users/{id}", logMiddleware(http.HandlerFunc(h.GetUser)))
-	r.Handle("PUT /api/v1/users/{id}", logMiddleware(http.HandlerFunc(h.UpdateUser)))
-	r.Handle("DELETE /api/v1/users/{id}", logMiddleware(http.HandlerFunc(h.DeleteUser)))
-	r.Handle("GET /api/v1/users", logMiddleware(http.HandlerFunc(h.ListUsers)))
+	r.Handle("POST /api/v1/users", logMiddleware(authMiddleware(http.HandlerFunc(h.CreateUser))))
+	r.Handle("GET /api/v1/users/{id}", logMiddleware(authMiddleware(http.HandlerFunc(h.GetUser))))
+	r.Handle("PUT /api/v1/users/{id}", logMiddleware(authMiddleware(http.HandlerFunc(h.UpdateUser))))
+	r.Handle("DELETE /api/v1/users/{id}", logMiddleware(authMiddleware(http.HandlerFunc(h.DeleteUser))))
+	r.Handle("GET /api/v1/users", logMiddleware(authMiddleware(http.HandlerFunc(h.ListUsers))))
 }

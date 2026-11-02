@@ -69,7 +69,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 		return middleware.Logging(next, log.Logger)
 	}
 
-	userRoute.Setup(r, userSvc, logMiddleware)
+	userRoute.Setup(r, userSvc, logMiddleware, middleware.Auth(jwtMgr))
 	authRoute.Setup(r, authSvc, logMiddleware)
 
 	// Global middleware stack (outermost applied last)
