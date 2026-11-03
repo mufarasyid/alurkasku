@@ -26,6 +26,7 @@ func (s *Service) CreateUser(req domain.CreateUserRequest) (*domain.User, error)
 		Email:    req.Email,
 		Password: req.Password, // hashed by handler/middleware layer before call
 		Name:     req.Name,
+		Role:     domain.RoleUser,
 	}
 	if err := s.repo.Create(u); err != nil {
 		return nil, apperror.Internal("failed to create user", err)
@@ -73,6 +74,9 @@ func (s *Service) UpdateUser(id string, req domain.UpdateUserRequest) (*domain.U
 			return nil, apperror.Conflict("email already in use")
 		}
 		u.Email = req.Email
+	}
+	if req.Role != "" {
+		u.Role = domain.Role(req.Role)
 	}
 
 	if err := s.repo.Update(u); err != nil {

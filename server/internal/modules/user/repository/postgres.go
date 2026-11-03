@@ -17,16 +17,16 @@ func NewPostgresRepository(db *sql.DB) *PostgresRepository {
 
 func (r *PostgresRepository) Create(u *domain.User) error {
 	query := `
-		INSERT INTO users (email, password, name, created_at, updated_at)
-		VALUES ($1, $2, $3, NOW(), NOW())
+		INSERT INTO users (email, password, name, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
 		RETURNING id, created_at, updated_at`
-	return r.db.QueryRow(query, u.Email, u.Password, u.Name).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+	return r.db.QueryRow(query, u.Email, u.Password, u.Name, u.Role).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
 
 func (r *PostgresRepository) GetByID(id string) (*domain.User, error) {
-	query := `SELECT id, email, password, name, created_at, updated_at, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL`
+	query := `SELECT id, email, password, name, role, created_at, updated_at, deleted_at FROM users WHERE id = $1 AND deleted_at IS NULL`
 	u := &domain.User{}
-	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.Role, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -37,9 +37,9 @@ func (r *PostgresRepository) GetByID(id string) (*domain.User, error) {
 }
 
 func (r *PostgresRepository) GetByEmail(email string) (*domain.User, error) {
-	query := `SELECT id, email, password, name, created_at, updated_at, deleted_at FROM users WHERE email = $1 AND deleted_at IS NULL`
+	query := `SELECT id, email, password, name, role, created_at, updated_at, deleted_at FROM users WHERE email = $1 AND deleted_at IS NULL`
 	u := &domain.User{}
-	err := r.db.QueryRow(query, email).Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
+	err := r.db.QueryRow(query, email).Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.Role, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -52,10 +52,10 @@ func (r *PostgresRepository) GetByEmail(email string) (*domain.User, error) {
 func (r *PostgresRepository) Update(u *domain.User) error {
 	query := `
 		UPDATE users
-		SET email = $1, name = $2, updated_at = NOW()
-		WHERE id = $3 AND deleted_at IS NULL
+		SET email = $1, name = $2, role = $3, updated_at = NOW()
+		WHERE id = $4 AND deleted_at IS NULL
 		RETURNING updated_at`
-	return r.db.QueryRow(query, u.Email, u.Name, u.ID).Scan(&u.UpdatedAt)
+	return r.db.QueryRow(query, u.Email, u.Name, u.Role, u.ID).Scan(&u.UpdatedAt)
 }
 
 func (r *PostgresRepository) Delete(id string) error {
@@ -81,7 +81,7 @@ func (r *PostgresRepository) List(offset, limit int) ([]domain.User, int64, erro
 	}
 
 	query := `
-		SELECT id, email, password, name, created_at, updated_at, deleted_at
+		SELECT id, email, password, name, role, created_at, updated_at, deleted_at
 		FROM users
 		WHERE deleted_at IS NULL
 		ORDER BY id
@@ -95,7 +95,7 @@ func (r *PostgresRepository) List(offset, limit int) ([]domain.User, int64, erro
 	var users []domain.User
 	for rows.Next() {
 		var u domain.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.Password, &u.Name, &u.Role, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		users = append(users, u)

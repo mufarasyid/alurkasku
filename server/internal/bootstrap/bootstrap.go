@@ -19,6 +19,9 @@ import (
 	"github.com/mufarasyid/alurkasku/server/internal/platform/security"
 	"github.com/mufarasyid/alurkasku/server/internal/router"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/middleware"
+	subRepo "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/repository"
+	subService "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/service"
+	subRoute "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/route"
 )
 
 type App struct {
@@ -71,6 +74,10 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	userRoute.Setup(r, userSvc, logMiddleware, middleware.Auth(jwtMgr))
 	authRoute.Setup(r, authSvc, logMiddleware)
+
+	subRepo := subRepo.NewPostgresRepository(postgres.DB)
+	subSvc := subService.New(subRepo, userRepository)
+	subRoute.Setup(r, subSvc, logMiddleware, middleware.Auth(jwtMgr))
 
 	// Global middleware stack (outermost applied last)
 	handler := middleware.JSON(r.Handler())

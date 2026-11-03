@@ -28,7 +28,7 @@ type TokenPair struct {
 }
 
 type AuthResponse struct {
-	User  UserProfile `json:"user"`
+	User  UserProfile  `json:"user"`
 	Token TokenPair   `json:"token"`
 }
 
@@ -36,6 +36,7 @@ type UserProfile struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name"`
+	Role  string `json:"role"`
 }
 
 type RefreshToken struct {

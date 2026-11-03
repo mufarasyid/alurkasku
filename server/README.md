@@ -57,6 +57,13 @@ README.md               # Dokumentasi ini
 | GET | `/api/v1/users/{id}` | Detail user |
 | PUT | `/api/v1/users/{id}` | Update user |
 | DELETE | `/api/v1/users/{id}` | Hapus user (soft delete) |
+| POST | `/api/v1/subscriptions` | Buat subscription (user/admin) |
+| GET | `/api/v1/subscriptions/{id}` | Detail subscription |
+| PUT | `/api/v1/subscriptions/{id}` | Update subscription |
+| DELETE | `/api/v1/subscriptions/{id}` | Hapus subscription |
+| GET | `/api/v1/subscriptions` | List subscription (pagination) |
+
+**Catatan:** `subscriptions` memiliki `start_date` dan `end_date`; user/auth mengelola via `role` (`admin`/`user`). Soft delete hanya di `users` (`deleted_at`); `subscriptions` hard delete.
 
 ## Cara Menjalankan Project (Pertama Kali)
 
@@ -100,6 +107,8 @@ Jalankan semua file `.up.sql` di `db/migrations/` secara berurutan:
 ```bash
 psql -h localhost -U postgres -d alurkasku -f db/migrations/001_create_users.up.sql
 psql -h localhost -U postgres -d alurkasku -f db/migrations/002_create_refresh_tokens.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/003_add_users_role.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/004_create_subscriptions.up.sql
 ```
 
 ### 7. Jalankan server

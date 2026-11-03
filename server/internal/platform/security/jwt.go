@@ -9,6 +9,7 @@ import (
 type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -26,11 +27,12 @@ func NewManager(secret string, accessExpiry, refreshExpiry time.Duration) *Manag
 	}
 }
 
-func (m *Manager) GenerateAccessToken(userID string, email string) (string, error) {
+func (m *Manager) GenerateAccessToken(userID string, email string, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,
 		Email:  email,
+		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.accessExpiry)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -43,11 +45,12 @@ func (m *Manager) GenerateAccessToken(userID string, email string) (string, erro
 	return token.SignedString([]byte(m.secret))
 }
 
-func (m *Manager) GenerateRefreshToken(userID string, email string) (string, error) {
+func (m *Manager) GenerateRefreshToken(userID string, email string, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,
 		Email:  email,
+		Role: role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.refreshExpiry)),
 			IssuedAt:  jwt.NewNumericDate(now),

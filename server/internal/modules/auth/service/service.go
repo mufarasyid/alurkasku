@@ -10,22 +10,22 @@ import (
 )
 
 type Service struct {
-	authRepo      domain.RefreshTokenRepository
-	userRepo      userDomain.UserRepository
-	userSvc       userDomain.UserService
-	jwtMgr        *security.Manager
-	accessExpiry  time.Duration
-	refreshExpiry time.Duration
+	authRepo       domain.RefreshTokenRepository
+	userRepo       userDomain.UserRepository
+	userSvc        userDomain.UserService
+	jwtMgr         *security.Manager
+	accessExpiry   time.Duration
+	refreshExpiry  time.Duration
 }
 
 func New(authRepo domain.RefreshTokenRepository, userRepo userDomain.UserRepository, userSvc userDomain.UserService, jwtMgr *security.Manager, accessExpiry, refreshExpiry time.Duration) *Service {
 	return &Service{
-		authRepo:      authRepo,
-		userRepo:      userRepo,
-		userSvc:       userSvc,
-		jwtMgr:        jwtMgr,
-		accessExpiry:  accessExpiry,
-		refreshExpiry: refreshExpiry,
+		authRepo:       authRepo,
+		userRepo:       userRepo,
+		userSvc:        userSvc,
+		jwtMgr:         jwtMgr,
+		accessExpiry:   accessExpiry,
+		refreshExpiry:  refreshExpiry,
 	}
 }
 
@@ -44,15 +44,16 @@ func (s *Service) Register(req domain.RegisterRequest) (*domain.AuthResponse, er
 	}
 
 	u := &userDomain.User{
-		Email:    req.Email,
-		Password: hash,
-		Name:     req.Name,
+		Email:     req.Email,
+		Password:  hash,
+		Name:      req.Name,
+		Role:      userDomain.RoleUser,
 	}
 	if err := s.userRepo.Create(u); err != nil {
 		return nil, apperror.Internal("failed to create user", err)
 	}
 
-	return s.issueTokens(u.ID, u.Email, u.Name)
+	return s.issueTokens(u.ID, u.Email, u.Name, string(u.Role))
 }
 
 func (s *Service) Login(req domain.LoginRequest) (*domain.AuthResponse, error) {
@@ -68,7 +69,7 @@ func (s *Service) Login(req domain.LoginRequest) (*domain.AuthResponse, error) {
 		return nil, apperror.Unauthorized("invalid email or password")
 	}
 
-	return s.issueTokens(u.ID, u.Email, u.Name)
+	return s.issueTokens(u.ID, u.Email, u.Name, string(u.Role))
 }
 
 func (s *Service) Refresh(req domain.RefreshRequest) (*domain.TokenPair, error) {
@@ -100,7 +101,7 @@ func (s *Service) Refresh(req domain.RefreshRequest) (*domain.TokenPair, error) 
 		return nil, apperror.Internal("failed to rotate refresh token", err)
 	}
 
-	return s.issueTokenPair(u.ID, u.Email, u.Name)
+	return s.issueTokenPair(u.ID, u.Email, string(u.Role))
 }
 
 func (s *Service) Logout(refreshToken string) error {
@@ -122,25 +123,25 @@ func (s *Service) Logout(refreshToken string) error {
 	return nil
 }
 
-func (s *Service) issueTokens(userID string, email, name string) (*domain.AuthResponse, error) {
-	pair, err := s.issueTokenPair(userID, email, name)
+func (s *Service) issueTokens(userID string, email, name, role string) (*domain.AuthResponse, error) {
+	pair, err := s.issueTokenPair(userID, email, role)
 	if err != nil {
 		return nil, err
 	}
 
 	return &domain.AuthResponse{
-		User:  domain.UserProfile{ID: userID, Email: email, Name: name},
+		User:  domain.UserProfile{ID: userID, Email: email, Name: name, Role: role},
 		Token: *pair,
 	}, nil
 }
 
-func (s *Service) issueTokenPair(userID string, email, name string) (*domain.TokenPair, error) {
-	accessToken, err := s.jwtMgr.GenerateAccessToken(userID, email)
+func (s *Service) issueTokenPair(userID string, email, role string) (*domain.TokenPair, error) {
+	accessToken, err := s.jwtMgr.GenerateAccessToken(userID, email, role)
 	if err != nil {
 		return nil, apperror.Internal("failed to generate access token", err)
 	}
 
-	refreshToken, err := s.jwtMgr.GenerateRefreshToken(userID, email)
+	refreshToken, err := s.jwtMgr.GenerateRefreshToken(userID, email, role)
 	if err != nil {
 		return nil, apperror.Internal("failed to generate refresh token", err)
 	}
