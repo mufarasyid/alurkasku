@@ -4,6 +4,8 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import DashboardLayout from "./components/layouts/DashboardLayout";
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import TransactionPage from "./pages/dashboard/TransactionPage";
+import SettingsPage from "./pages/dashboard/SettingsPage";
+import ProfilePage from "./pages/dashboard/ProfilePage";
 
 const App = () => {
   return (
@@ -14,6 +16,8 @@ const App = () => {
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="transaction" element={<TransactionPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Routes>
     </>

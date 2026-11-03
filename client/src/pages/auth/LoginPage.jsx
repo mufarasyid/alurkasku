@@ -1,9 +1,27 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import FormAuth from "../../components/templates/FormAuth";
-import { Link } from "react-router";
+import { saveSession } from "../../lib/auth-storage";
+import { login } from "../../services/auth";
 
 const LoginPage = () => {
-  const handleLogin = (data) => {
-    console.log("Login data:", data);
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async (data) => {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await login(data);
+      saveSession(response.data);
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -31,6 +49,8 @@ const LoginPage = () => {
         ]}
         submitLabel="Sign In"
         onSubmit={handleLogin}
+        error={error}
+        isSubmitting={isSubmitting}
         footer={
           <p className="text-muted-foreground">
             Don't have an account?{" "}

@@ -10,6 +10,8 @@ const FormAuth = ({
   submitLabel = "Submit",
   onSubmit,
   footer,
+  error,
+  isSubmitting = false,
 }) => {
   const [showPassword, setShowPassword] = useState({});
 
@@ -37,6 +39,14 @@ const FormAuth = ({
           {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {error}
+            </p>
+          )}
           {fields.map((field) => {
             const isPassword = field.type === "password";
             const inputType = isPassword && showPassword[field.name] ? "text" : field.type || "text";
@@ -76,8 +86,13 @@ const FormAuth = ({
               </div>
             );
           })}
-          <Button type="submit" className="w-full">
-            {submitLabel}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+          >
+            {isSubmitting ? "Please wait..." : submitLabel}
           </Button>
         </form>
         {footer && <div className="text-center text-sm">{footer}</div>}

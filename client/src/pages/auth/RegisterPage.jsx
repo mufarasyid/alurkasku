@@ -1,9 +1,27 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import FormAuth from "../../components/templates/FormAuth";
-import { Link } from "react-router";
+import { saveSession } from "../../lib/auth-storage";
+import { register } from "../../services/auth";
 
 const RegisterPage = () => {
-  const handleRegister = (data) => {
-    console.log("Register data:", data);
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleRegister = async (data) => {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await register(data);
+      saveSession(response.data);
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -40,6 +58,8 @@ const RegisterPage = () => {
         ]}
         submitLabel="Create Account"
         onSubmit={handleRegister}
+        error={error}
+        isSubmitting={isSubmitting}
         footer={
           <p className="text-muted-foreground">
             Already have an account?{" "}

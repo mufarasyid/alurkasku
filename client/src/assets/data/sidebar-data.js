@@ -89,7 +89,7 @@ export const sidebarData = [
     items: [
       {
         title: "Settings",
-        path: "/settings",
+        path: "/dashboard/settings",
         icon: Settings,
       },
     ],
