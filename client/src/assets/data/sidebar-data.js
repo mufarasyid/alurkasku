@@ -5,8 +5,6 @@ import {
   ChartNoAxesCombined,
   PiggyBank,
   Tags,
-  ReceiptText,
-  Target,
   Settings,
 } from "lucide-react";
 
@@ -24,35 +22,25 @@ export const sidebarData = [
         path: "/dashboard/transaction",
         icon: ArrowLeftRight,
       },
-      {
-        title: "Accounts",
-        path: "/accounts",
-        icon: Wallet,
-      },
     ],
   },
   {
     title: "MANAGEMENT",
     items: [
       {
-        title: "Budgets",
-        path: "/budgets",
-        icon: PiggyBank,
+        title: "Accounts",
+        path: "/dashboard/accounts",
+        icon: Wallet,
       },
       {
         title: "Categories",
-        path: "/categories",
+        path: "/dashboard/categories",
         icon: Tags,
       },
       {
-        title: "Recurring",
-        path: "/recurring",
-        icon: ReceiptText,
-      },
-      {
-        title: "Financial Goals",
-        path: "/goals",
-        icon: Target,
+        title: "Budgets",
+        path: "/budgets",
+        icon: PiggyBank,
       },
     ],
   },

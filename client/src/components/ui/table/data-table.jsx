@@ -1,4 +1,4 @@
-import { forwardRef, useState, useMemo, useEffect } from 'react'
+import { forwardRef, useState, useMemo, useEffect, useRef } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react'
 import { cn } from '../../../lib/utils.js'
 import {
@@ -22,19 +22,45 @@ const getAlign = (column) =>
     column.align === 'right' && 'text-right'
   )
 
+const getItemsAlign = (column) =>
+  cn(
+    'items-start',
+    column.align === 'center' && 'items-center',
+    column.align === 'right' && 'items-end'
+  )
+
+const SelectAllCheckbox = ({ checked, indeterminate, onChange, ariaLabel }) => {
+  const ref = useRef(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      aria-label={ariaLabel}
+      className="size-4 accent-primary"
+    />
+  )
+}
+
 const DataTable = forwardRef(
   (
     {
       columns,
       data = [],
       pageSize = 10,
-      showPageSize = false,
-      pageSizeOptions = [5, 10, 20, 50],
       searchPlaceholder = 'Search...',
       emptyMessage = 'No results found.',
       showActions = false,
       actions,
       actionsHeader = 'Actions',
+      selectable = false,
+      selected,
+      onSelectedChange,
+      compact = false,
       className,
       ...props
     },
@@ -43,7 +69,17 @@ const DataTable = forwardRef(
     const [sort, setSort] = useState(null)
     const [searches, setSearches] = useState({})
     const [page, setPage] = useState(1)
-    const [size, setSize] = useState(pageSize)
+    const size = pageSize
+
+    const selectedIds = useMemo(
+      () => (selected instanceof Set ? selected : new Set(selected ?? [])),
+      [selected]
+    )
+
+    const rowId = useMemo(() => {
+      const map = new Map(data.map((row, index) => [row, row.id ?? index]))
+      return (row) => map.get(row)
+    }, [data])
 
     const handleSort = (key) => {
       setSort((prev) => {
@@ -105,8 +141,32 @@ const DataTable = forwardRef(
       return sortedRows.slice(start, start + size)
     }, [sortedRows, page, size])
 
-    const startIndex = sortedRows.length === 0 ? 0 : (page - 1) * size + 1
-    const endIndex = Math.min(page * size, sortedRows.length)
+    const toggleRow = (id) => {
+      if (!onSelectedChange) return
+      const next = new Set(selectedIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      onSelectedChange(next)
+    }
+
+    const filteredIds = useMemo(
+      () => sortedRows.map((row) => rowId(row)),
+      [sortedRows, rowId]
+    )
+    const selectedInView = filteredIds.filter((id) => selectedIds.has(id)).length
+    const allChecked =
+      filteredIds.length > 0 && selectedInView === filteredIds.length
+    const someChecked = selectedInView > 0 && !allChecked
+
+    const toggleAll = () => {
+      if (!onSelectedChange) return
+      const next = new Set(selectedIds)
+      if (allChecked) filteredIds.forEach((id) => next.delete(id))
+      else filteredIds.forEach((id) => next.add(id))
+      onSelectedChange(next)
+    }
+
+    const columnCount = columns.length + (showActions ? 1 : 0) + (selectable ? 1 : 0)
 
     return (
       <div
@@ -117,12 +177,22 @@ const DataTable = forwardRef(
         <Table>
           <TableHeader>
             <TableRow>
+              {selectable && (
+                <TableHead className="w-[48px]">
+                  <SelectAllCheckbox
+                    checked={allChecked}
+                    indeterminate={someChecked}
+                    onChange={toggleAll}
+                    ariaLabel="Select all rows"
+                  />
+                </TableHead>
+              )}
               {columns.map((column) => (
                 <TableHead
                   key={column.key}
                   className={cn(column.width, getAlign(column))}
                 >
-                  <div className={cn('flex flex-col gap-1.5', getAlign(column))}>
+                  <div className={cn('flex flex-col gap-1.5', getItemsAlign(column))}>
                     <button
                       type="button"
                       disabled={!column.sortable}
@@ -149,7 +219,7 @@ const DataTable = forwardRef(
                     </button>
 
                     {column.searchable && (
-                      <div className="relative">
+                      <div className="relative w-full">
                         <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                         <input
                           type="text"
@@ -181,68 +251,66 @@ const DataTable = forwardRef(
             {visibleRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (showActions ? 1 : 0)}
+                  colSpan={columnCount}
                   className="h-24 text-center text-muted-foreground"
                 >
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              visibleRows.map((row, index) => (
-                <TableRow key={row.id ?? index}>
-                  {columns.map((column) => {
-                    const value = getValue(row, column)
-                    return (
-                      <TableCell
-                        key={column.key}
-                        className={getAlign(column)}
-                      >
-                        {column.render ? column.render(value, row) : value}
+              visibleRows.map((row) => {
+                const id = rowId(row)
+                const isSelected = selectable && selectedIds.has(id)
+                return (
+                  <TableRow
+                    key={id}
+                    data-state={isSelected ? 'selected' : undefined}
+                    className={cn(
+                      isSelected &&
+                        'shadow-[inset_3px_0_0_0_var(--color-primary)]'
+                    )}
+                  >
+                    {selectable && (
+                      <TableCell className={cn(compact && 'py-1.5', 'w-[48px]')}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleRow(id)}
+                          aria-label={`Select ${row.name ?? 'row'}`}
+                          className="size-4 accent-primary"
+                        />
                       </TableCell>
-                    )
-                  })}
-                  {showActions && (
-                    <TableCell className="whitespace-nowrap text-right">
-                      {actions ? actions(row) : null}
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
+                    )}
+                    {columns.map((column) => {
+                      const value = getValue(row, column)
+                      return (
+                        <TableCell
+                          key={column.key}
+                          className={cn(getAlign(column), compact && 'py-1.5')}
+                        >
+                          {column.render ? column.render(value, row) : value}
+                        </TableCell>
+                      )
+                    })}
+                    {showActions && (
+                      <TableCell className="whitespace-nowrap text-right">
+                        {actions ? actions(row) : null}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>
 
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="whitespace-nowrap text-sm text-muted-foreground">
-            Showing {startIndex}–{endIndex} of {sortedRows.length}
-          </p>
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
-            {showPageSize && (
-              <label className="flex items-center gap-2 whitespace-nowrap text-sm text-muted-foreground">
-                Rows per page
-                <select
-                  value={size}
-                  onChange={(e) => {
-                    setSize(Number(e.target.value))
-                    setPage(1)
-                  }}
-                  className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {pageSizeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              className="sm:mx-0"
-            />
-          </div>
+        <div className="mt-4 flex justify-end">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            className="mx-0 w-auto"
+          />
         </div>
       </div>
     )
