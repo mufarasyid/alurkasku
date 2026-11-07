@@ -39,7 +39,7 @@ export const sidebarData = [
       },
       {
         title: "Budgets",
-        path: "/budgets",
+        path: "/dashboard/budgets",
         icon: PiggyBank,
       },
     ],

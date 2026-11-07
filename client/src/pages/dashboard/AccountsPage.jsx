@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Landmark,
   Building2,
@@ -14,6 +14,7 @@ import {
   Download,
   Plus,
   MoreHorizontal,
+  ArrowLeftRight,
   Pencil,
   Trash2,
   X,
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
+import { Input, RupiahInput } from "../../components/ui/input";
 import { Card, CardContent } from "../../components/ui/card";
 import { DataTable } from "../../components/ui/table";
 import {
@@ -47,6 +48,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { Skeleton } from "../../components/ui/skeleton";
+import AccountTransferDialog from "../../components/templates/AccountTransferDialog";
+import {
+  getAccounts,
+  createAccount,
+  updateAccount,
+  bulkDeleteAccounts,
+} from "../../services/accounts";
 
 const ICON_LIST = [
   { name: "Landmark", Icon: Landmark },
@@ -62,80 +71,11 @@ const ICON_LIST = [
   { name: "Tag", Icon: Tag },
 ];
 
-const DUMMY_ACCOUNTS = [
-  {
-    id: 1,
-    name: "BCA Tahapan",
-    type: "Bank",
-    detail: "BCA •• 1234",
-    balance: 12450000,
-    icon: Landmark,
-  },
-  {
-    id: 2,
-    name: "Mandiri Tabungan",
-    type: "Bank",
-    detail: "Mandiri •• 5678",
-    balance: 8720500,
-    icon: Building2,
-  },
-  {
-    id: 3,
-    name: "BRI BritAma",
-    type: "Bank",
-    detail: "BRI •• 9012",
-    balance: 3150000,
-    icon: Landmark,
-  },
-  {
-    id: 4,
-    name: "BNI Taplus",
-    type: "Bank",
-    detail: "BNI •• 3456",
-    balance: 1480000,
-    icon: Building2,
-  },
-  {
-    id: 5,
-    name: "GoPay",
-    type: "Wallet",
-    detail: "0812 •• •• 7890",
-    balance: 450000,
-    icon: Smartphone,
-  },
-  {
-    id: 6,
-    name: "OVO",
-    type: "Wallet",
-    detail: "0813 •• •• 1122",
-    balance: 275000,
-    icon: QrCode,
-  },
-  {
-    id: 7,
-    name: "Dana",
-    type: "Wallet",
-    detail: "0856 •• •• 3344",
-    balance: 180000,
-    icon: Wallet,
-  },
-  {
-    id: 8,
-    name: "ShopeePay",
-    type: "Wallet",
-    detail: "0821 •• •• 5566",
-    balance: 95000,
-    icon: WalletCards,
-  },
-  {
-    id: 9,
-    name: "Cash",
-    type: "Wallet",
-    detail: "Physical cash",
-    balance: 750000,
-    icon: Banknote,
-  },
-];
+const ICON_MAP = Object.fromEntries(
+  ICON_LIST.map(({ name, Icon }) => [name, Icon]),
+);
+
+const resolveIcon = (name, fallback = Tag) => ICON_MAP[name] ?? fallback;
 
 const DEFAULT_ICON_CLASS = "bg-muted text-muted-foreground";
 
@@ -146,24 +86,35 @@ const formatIDR = (value) =>
     maximumFractionDigits: 0,
   }).format(value ?? 0);
 
-const TypePill = ({ value }) => (
-  <span
-    className={cn(
-      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
-      value === "Bank"
-        ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
-        : "bg-violet-500/10 text-violet-700 dark:text-violet-400",
-    )}
-  >
+const TYPE_PILL_TONES = {
+  Bank: {
+    pill: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
+    dot: "bg-sky-500",
+  },
+  Wallet: {
+    pill: "bg-violet-500/10 text-violet-700 dark:text-violet-400",
+    dot: "bg-violet-500",
+  },
+  Cash: {
+    pill: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    dot: "bg-amber-500",
+  },
+};
+
+const TypePill = ({ value }) => {
+  const tone = TYPE_PILL_TONES[value] ?? TYPE_PILL_TONES.Wallet;
+  return (
     <span
       className={cn(
-        "size-1.5 rounded-full",
-        value === "Bank" ? "bg-sky-500" : "bg-violet-500",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
+        tone.pill,
       )}
-    />
-    {value}
-  </span>
-);
+    >
+      <span className={cn("size-1.5 rounded-full", tone.dot)} />
+      {value}
+    </span>
+  );
+};
 
 const buildColumns = () => [
   {
@@ -172,7 +123,7 @@ const buildColumns = () => [
     sortable: true,
     width: "min-w-[240px]",
     render: (_, row) => {
-      const Icon = row.icon;
+      const Icon = resolveIcon(row.icon, Landmark);
       return (
         <div className="flex items-center gap-3">
           <span
@@ -214,6 +165,7 @@ const columns = buildColumns();
 
 const TABS = [
   { key: "all", label: "All", icon: List },
+  { key: "Cash", label: "Cash", icon: Banknote },
   { key: "Bank", label: "Banks", icon: Landmark },
   { key: "Wallet", label: "Wallets", icon: WalletCards },
 ];
@@ -223,8 +175,13 @@ const csvEscape = (value) => {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 
-const AccountPage = () => {
-  const [accounts, setAccounts] = useState(DUMMY_ACCOUNTS);
+const AccountsPage = () => {
+  const [accounts, setAccounts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(new Set());
@@ -233,12 +190,40 @@ const AccountPage = () => {
   const [formType, setFormType] = useState("Bank");
   const [formDetail, setFormDetail] = useState("");
   const [formBalance, setFormBalance] = useState("");
-  const [formIcon, setFormIcon] = useState(Landmark);
+  const [formIcon, setFormIcon] = useState("Landmark");
   const [iconQuery, setIconQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [transferDialog, setTransferDialog] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    getAccounts()
+      .then((res) => {
+        if (active) setAccounts(res.data ?? []);
+      })
+      .catch((err) => {
+        if (active) setLoadError(err.message || "Failed to load accounts.");
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const reloadAccounts = () => {
+    getAccounts()
+      .then((res) => {
+        setAccounts(res.data ?? []);
+        setLoadError("");
+      })
+      .catch((err) => setLoadError(err.message || "Failed to load accounts."));
+  };
 
   const counts = {
     all: accounts.length,
+    Cash: accounts.filter((account) => account.type === "Cash").length,
     Bank: accounts.filter((account) => account.type === "Bank").length,
     Wallet: accounts.filter((account) => account.type === "Wallet").length,
   };
@@ -263,8 +248,9 @@ const AccountPage = () => {
     setFormType("Bank");
     setFormDetail("");
     setFormBalance("");
-    setFormIcon(Landmark);
+    setFormIcon("Landmark");
     setIconQuery("");
+    setFormError("");
     setFormDialog({ mode: "add" });
   };
 
@@ -273,58 +259,67 @@ const AccountPage = () => {
     setFormType(row.type);
     setFormDetail(row.detail ?? "");
     setFormBalance(String(row.balance ?? 0));
-    setFormIcon(row.icon ?? Landmark);
+    setFormIcon(row.icon ?? "Landmark");
     setIconQuery("");
+    setFormError("");
     setFormDialog({ mode: "edit", row });
   };
 
-  const closeFormDialog = () => setFormDialog(null);
+  const closeFormDialog = () => {
+    setFormDialog(null);
+    setFormError("");
+  };
 
-  const handleSaveAccount = (event) => {
+  const handleSaveAccount = async (event) => {
     event.preventDefault();
     const name = formName.trim();
     if (!name) return;
     const balance = Number(formBalance);
     const safeBalance = Number.isFinite(balance) && balance >= 0 ? balance : 0;
-    const detail = formDetail.trim();
+    const payload = {
+      name,
+      type: formType,
+      detail: formDetail.trim(),
+      balance: safeBalance,
+      icon: formIcon,
+    };
 
-    if (formDialog?.mode === "edit") {
-      setAccounts((prev) =>
-        prev.map((account) =>
-          account.id === formDialog.row.id
-            ? {
-                ...account,
-                name,
-                type: formType,
-                detail,
-                balance: safeBalance,
-                icon: formIcon,
-              }
-            : account,
-        ),
-      );
-    } else {
-      setAccounts((prev) => [
-        {
-          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-          name,
-          type: formType,
-          detail,
-          balance: safeBalance,
-          icon: formIcon,
-        },
-        ...prev,
-      ]);
+    setIsSaving(true);
+    setFormError("");
+    try {
+      if (formDialog?.mode === "edit") {
+        const res = await updateAccount(formDialog.row.id, payload);
+        setAccounts((prev) =>
+          prev.map((account) => (account.id === res.data.id ? res.data : account)),
+        );
+      } else {
+        const res = await createAccount(payload);
+        setAccounts((prev) => [res.data, ...prev]);
+      }
+      closeFormDialog();
+    } catch (err) {
+      setFormError(err.message || "Failed to save account.");
+    } finally {
+      setIsSaving(false);
     }
-    closeFormDialog();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!pendingDelete) return;
-    const ids = new Set(pendingDelete.map((row) => row.id));
-    setAccounts((prev) => prev.filter((account) => !ids.has(account.id)));
-    setSelected((prev) => new Set([...prev].filter((id) => !ids.has(id))));
-    setPendingDelete(null);
+    const ids = pendingDelete.map((row) => row.id);
+    const idSet = new Set(ids);
+    setIsDeleting(true);
+    try {
+      await bulkDeleteAccounts(ids);
+      setAccounts((prev) => prev.filter((account) => !idSet.has(account.id)));
+      setSelected((prev) => new Set([...prev].filter((id) => !idSet.has(id))));
+      setPendingDelete(null);
+    } catch (err) {
+      setLoadError(err.message || "Failed to delete accounts.");
+      setPendingDelete(null);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleExport = () => {
@@ -367,8 +362,33 @@ const AccountPage = () => {
             <Download size={19} strokeWidth={1.8} />
             <p>Export</p>
           </Button>
+          <Button variant="outline" onClick={() => setTransferDialog("withdrawal")}>
+            <Banknote size={19} strokeWidth={1.8} />
+            <p>Tarik Tunai</p>
+          </Button>
+          <Button variant="outline" onClick={() => setTransferDialog("transfer")}>
+            <ArrowLeftRight size={19} strokeWidth={1.8} />
+            <p>Transfer</p>
+          </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => setLoadError("")}
+            aria-label="Dismiss error"
+            className="rounded-md p-0.5 transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
 
       {/* Table card */}
       <Card className="flex w-full shrink-0 flex-col overflow-hidden border-border/60 shadow-sm">
@@ -437,6 +457,25 @@ const AccountPage = () => {
 
         {/* Table */}
         <CardContent className="p-3 sm:p-4">
+          {isLoading ? (
+            <div
+              className="flex flex-col gap-4 py-2"
+              aria-busy="true"
+              aria-label="Loading accounts"
+            >
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  <Skeleton className="size-8 shrink-0 rounded-lg" />
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                  <Skeleton className="hidden h-4 w-16 sm:block" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <DataTable
             columns={columns}
             data={visibleAccounts}
@@ -478,6 +517,7 @@ const AccountPage = () => {
               </Dropdown>
             )}
           />
+          )}
         </CardContent>
       </Card>
 
@@ -588,7 +628,7 @@ const AccountPage = () => {
                   className="grid max-h-40 grid-cols-8 gap-1 overflow-y-auto rounded-xl border border-border p-2"
                 >
                   {filteredIcons.map(({ name, Icon }) => {
-                    const active = formIcon === Icon;
+                    const active = formIcon === name;
                     return (
                       <button
                         key={name}
@@ -597,7 +637,7 @@ const AccountPage = () => {
                         aria-checked={active}
                         aria-label={`Icon ${name}`}
                         title={name}
-                        onClick={() => setFormIcon(Icon)}
+                        onClick={() => setFormIcon(name)}
                         className={cn(
                           "flex size-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                           active
@@ -641,6 +681,7 @@ const AccountPage = () => {
                     <SelectContent side="bottom" sideOffset={6}>
                       <SelectItem value="Bank">Bank</SelectItem>
                       <SelectItem value="Wallet">Wallet</SelectItem>
+                      <SelectItem value="Cash">Cash</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -652,12 +693,8 @@ const AccountPage = () => {
                   >
                     Balance (Rp)
                   </label>
-                  <Input
+                  <RupiahInput
                     id="account-balance"
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    step={1000}
                     value={formBalance}
                     onChange={(event) => setFormBalance(event.target.value)}
                     placeholder="0"
@@ -666,12 +703,25 @@ const AccountPage = () => {
               </div>
             </div>
 
+            {formError && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {formError}
+              </p>
+            )}
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeFormDialog}>
+              <Button type="button" variant="outline" onClick={closeFormDialog} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="submit">
-                {formDialog?.mode === "edit" ? "Save changes" : "Add account"}
+              <Button type="submit" disabled={isSaving}>
+                {isSaving
+                  ? "Saving..."
+                  : formDialog?.mode === "edit"
+                    ? "Save changes"
+                    : "Add account"}
               </Button>
             </DialogFooter>
           </form>
@@ -695,18 +745,29 @@ const AccountPage = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+            <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               <Trash2 size={17} strokeWidth={1.8} />
-              Delete
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Transfer / Tarik Tunai dialog */}
+      {transferDialog && (
+        <AccountTransferDialog
+          mode={transferDialog}
+          open
+          onOpenChange={(open) => !open && setTransferDialog(null)}
+          accounts={accounts}
+          onSuccess={reloadAccounts}
+        />
+      )}
     </div>
   );
 };
 
-export default AccountPage;
+export default AccountsPage;

@@ -83,6 +83,23 @@ const SelectItem = forwardRef(
 )
 SelectItem.displayName = 'SelectItem'
 
+const SelectEmptyItem = forwardRef(
+  ({ className, children, ...props }, ref) => {
+    return (
+      <SelectItem
+        ref={ref}
+        value="__empty"
+        disabled
+        className={cn('cursor-default text-muted-foreground', className)}
+        {...props}
+      >
+        {children}
+      </SelectItem>
+    )
+  }
+)
+SelectEmptyItem.displayName = 'SelectEmptyItem'
+
 const SelectLabel = forwardRef(({ className, ...props }, ref) => {
   return (
     <SelectPrimitive.Label
@@ -112,6 +129,7 @@ export {
   SelectTrigger,
   SelectContent,
   SelectItem,
+  SelectEmptyItem,
   SelectLabel,
   SelectSeparator,
 }

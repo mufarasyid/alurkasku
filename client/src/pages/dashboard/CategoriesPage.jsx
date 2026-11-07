@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Briefcase,
   Laptop,
@@ -92,6 +92,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { Skeleton } from "../../components/ui/skeleton";
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  bulkDeleteCategories,
+} from "../../services/categories";
 
 const ICON_LIST = [
   { name: "Briefcase", Icon: Briefcase },
@@ -150,108 +157,19 @@ const ICON_LIST = [
   { name: "Tag", Icon: Tag },
 ];
 
-const DUMMY_CATEGORIES = [
-  {
-    id: 1,
-    name: "Salary",
-    type: "Income",
-    icon: Briefcase,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 2,
-    name: "Freelance",
-    type: "Income",
-    icon: Laptop,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 3,
-    name: "Investments",
-    type: "Income",
-    icon: TrendingUp,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 4,
-    name: "Food & Drinks",
-    type: "Expense",
-    icon: Utensils,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 5,
-    name: "Transportation",
-    type: "Expense",
-    icon: Car,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 6,
-    name: "Shopping",
-    type: "Expense",
-    icon: ShoppingBag,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 7,
-    name: "Housing & Utilities",
-    type: "Expense",
-    icon: Home,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 8,
-    name: "Health",
-    type: "Expense",
-    icon: HeartPulse,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 9,
-    name: "Entertainment",
-    type: "Expense",
-    icon: Clapperboard,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 10,
-    name: "Education",
-    type: "Expense",
-    icon: GraduationCap,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 11,
-    name: "Travel",
-    type: "Expense",
-    icon: Plane,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 12,
-    name: "Subscriptions",
-    type: "Expense",
-    icon: Repeat,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 13,
-    name: "Gifts & Donations",
-    type: "Expense",
-    icon: Gift,
-    iconClass: "bg-muted text-foreground",
-  },
-  {
-    id: 14,
-    name: "Coffee",
-    type: "Expense",
-    icon: Coffee,
-    iconClass: "bg-muted text-foreground",
-  },
-];
+
+const ICON_MAP = Object.fromEntries(
+  ICON_LIST.map(({ name, Icon }) => [name, Icon]),
+);
+
+const resolveIcon = (name, fallback = Tag) => ICON_MAP[name] ?? fallback;
 
 const DEFAULT_ICON_CLASS = "bg-muted text-muted-foreground";
+
+const csvEscape = (value) => {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
 
 const TypePill = ({ value }) => (
   <span
@@ -279,13 +197,13 @@ const buildColumns = () => [
     sortable: true,
     width: "min-w-[220px]",
     render: (_, row) => {
-      const Icon = row.icon;
+      const Icon = resolveIcon(row.icon);
       return (
         <div className="flex items-center gap-3">
           <span
             className={cn(
               "flex size-8 shrink-0 items-center justify-center rounded-lg",
-              row.iconClass,
+              DEFAULT_ICON_CLASS,
             )}
           >
             <Icon className="size-4" strokeWidth={1.8} />
@@ -313,16 +231,38 @@ const TABS = [
 ];
 
 const CategoriesPage = () => {
-  const [categories, setCategories] = useState(DUMMY_CATEGORIES);
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(new Set());
   const [formDialog, setFormDialog] = useState(null);
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState("Expense");
-  const [formIcon, setFormIcon] = useState(Tag);
+  const [formIcon, setFormIcon] = useState("Tag");
   const [iconQuery, setIconQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    getCategories()
+      .then((res) => {
+        if (active) setCategories(res.data ?? []);
+      })
+      .catch((err) => {
+        if (active) setLoadError(err.message || "Failed to load categories.");
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const counts = {
     all: categories.length,
@@ -348,55 +288,87 @@ const CategoriesPage = () => {
   const openAddDialog = () => {
     setFormName("");
     setFormType("Expense");
-    setFormIcon(Tag);
+    setFormIcon("Tag");
     setIconQuery("");
+    setFormError("");
     setFormDialog({ mode: "add" });
   };
 
   const openEditDialog = (row) => {
     setFormName(row.name);
     setFormType(row.type);
-    setFormIcon(row.icon ?? Tag);
+    setFormIcon(row.icon ?? "Tag");
     setIconQuery("");
+    setFormError("");
     setFormDialog({ mode: "edit", row });
   };
 
-  const closeFormDialog = () => setFormDialog(null);
+  const closeFormDialog = () => {
+    setFormDialog(null);
+    setFormError("");
+  };
 
-  const handleSaveCategory = (event) => {
+  const handleSaveCategory = async (event) => {
     event.preventDefault();
     const name = formName.trim();
     if (!name) return;
+    const payload = { name, type: formType, icon: formIcon };
 
-    if (formDialog?.mode === "edit") {
-      setCategories((prev) =>
-        prev.map((category) =>
-          category.id === formDialog.row.id
-            ? { ...category, name, type: formType, icon: formIcon }
-            : category,
-        ),
-      );
-    } else {
-      setCategories((prev) => [
-        {
-          id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-          name,
-          type: formType,
-          icon: formIcon,
-          iconClass: DEFAULT_ICON_CLASS,
-        },
-        ...prev,
-      ]);
+    setIsSaving(true);
+    setFormError("");
+    try {
+      if (formDialog?.mode === "edit") {
+        const res = await updateCategory(formDialog.row.id, payload);
+        setCategories((prev) =>
+          prev.map((category) =>
+            category.id === res.data.id ? res.data : category,
+          ),
+        );
+      } else {
+        const res = await createCategory(payload);
+        setCategories((prev) => [res.data, ...prev]);
+      }
+      closeFormDialog();
+    } catch (err) {
+      setFormError(err.message || "Failed to save category.");
+    } finally {
+      setIsSaving(false);
     }
-    closeFormDialog();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!pendingDelete) return;
-    const ids = new Set(pendingDelete.map((row) => row.id));
-    setCategories((prev) => prev.filter((category) => !ids.has(category.id)));
-    setSelected((prev) => new Set([...prev].filter((id) => !ids.has(id))));
-    setPendingDelete(null);
+    const ids = pendingDelete.map((row) => row.id);
+    const idSet = new Set(ids);
+    setIsDeleting(true);
+    try {
+      await bulkDeleteCategories(ids);
+      setCategories((prev) =>
+        prev.filter((category) => !idSet.has(category.id)),
+      );
+      setSelected((prev) => new Set([...prev].filter((id) => !idSet.has(id))));
+      setPendingDelete(null);
+    } catch (err) {
+      setLoadError(err.message || "Failed to delete categories.");
+      setPendingDelete(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleExport = () => {
+    const header = ["Name", "Type"];
+    const lines = visibleCategories.map((category) =>
+      [csvEscape(category.name), csvEscape(category.type)].join(","),
+    );
+    const csv = [header.join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "categories.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const clearSelection = () => setSelected(new Set());
@@ -417,12 +389,29 @@ const CategoriesPage = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 md:gap-4">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport}>
             <Download size={19} strokeWidth={1.8} />
             <p>Export</p>
           </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-start justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => setLoadError("")}
+            aria-label="Dismiss error"
+            className="rounded-md p-0.5 transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
 
       {/* Table card */}
       <Card className="flex w-full shrink-0 flex-col overflow-hidden border-border/60 shadow-sm">
@@ -491,6 +480,21 @@ const CategoriesPage = () => {
 
         {/* Table */}
         <CardContent className="p-3 sm:p-4">
+          {isLoading ? (
+            <div
+              className="flex flex-col gap-4 py-2"
+              aria-busy="true"
+              aria-label="Loading categories"
+            >
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  <Skeleton className="size-8 shrink-0 rounded-lg" />
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="ml-auto h-4 w-20" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <DataTable
             columns={columns}
             data={visibleCategories}
@@ -532,6 +536,7 @@ const CategoriesPage = () => {
               </Dropdown>
             )}
           />
+          )}
         </CardContent>
       </Card>
 
@@ -642,7 +647,7 @@ const CategoriesPage = () => {
                   className="grid max-h-44 grid-cols-8 gap-1 overflow-y-auto rounded-xl border border-border p-2"
                 >
                   {filteredIcons.map(({ name, Icon }) => {
-                    const active = formIcon === Icon;
+                    const active = formIcon === name;
                     return (
                       <button
                         key={name}
@@ -651,7 +656,7 @@ const CategoriesPage = () => {
                         aria-checked={active}
                         aria-label={`Icon ${name}`}
                         title={name}
-                        onClick={() => setFormIcon(Icon)}
+                        onClick={() => setFormIcon(name)}
                         className={cn(
                           "flex size-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                           active
@@ -687,12 +692,25 @@ const CategoriesPage = () => {
               </div>
             </div>
 
+            {formError && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {formError}
+              </p>
+            )}
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeFormDialog}>
+              <Button type="button" variant="outline" onClick={closeFormDialog} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button type="submit">
-                {formDialog?.mode === "edit" ? "Save changes" : "Add category"}
+              <Button type="submit" disabled={isSaving}>
+                {isSaving
+                  ? "Saving..."
+                  : formDialog?.mode === "edit"
+                    ? "Save changes"
+                    : "Add category"}
               </Button>
             </DialogFooter>
           </form>
@@ -718,12 +736,12 @@ const CategoriesPage = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+            <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
               <Trash2 size={17} strokeWidth={1.8} />
-              Delete
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

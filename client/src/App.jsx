@@ -7,7 +7,8 @@ import TransactionPage from "./pages/dashboard/TransactionPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import ProfilePage from "./pages/dashboard/ProfilePage";
 import CategoriesPage from "./pages/dashboard/CategoriesPage";
-import AccountPage from "./pages/dashboard/AccountPage";
+import AccountsPage from "./pages/dashboard/AccountsPage";
+import BudgetsPage from "./pages/dashboard/BudgetsPage";
 
 const App = () => {
   return (
@@ -19,7 +20,8 @@ const App = () => {
           <Route index element={<DashboardPage />} />
           <Route path="transaction" element={<TransactionPage />} />
           <Route path="categories" element={<CategoriesPage />} />
-          <Route path="accounts" element={<AccountPage />} />
+          <Route path="accounts" element={<AccountsPage />} />
+          <Route path="budgets" element={<BudgetsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

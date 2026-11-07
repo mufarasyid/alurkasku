@@ -1,2 +1,1 @@
-export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem, SelectLabel, SelectSeparator } from './select.jsx'
-
+export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem, SelectEmptyItem, SelectLabel, SelectSeparator } from './select.jsx'
