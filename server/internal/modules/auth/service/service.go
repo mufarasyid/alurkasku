@@ -3,7 +3,10 @@ package service
 import (
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/mufarasyid/alurkasku/server/internal/modules/auth/domain"
+	catDomain "github.com/mufarasyid/alurkasku/server/internal/modules/category/domain"
 	userDomain "github.com/mufarasyid/alurkasku/server/internal/modules/user/domain"
 	"github.com/mufarasyid/alurkasku/server/internal/platform/security"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/apperror"
@@ -13,19 +16,23 @@ type Service struct {
 	authRepo       domain.RefreshTokenRepository
 	userRepo       userDomain.UserRepository
 	userSvc        userDomain.UserService
+	categorySeeder catDomain.CategorySeeder
 	jwtMgr         *security.Manager
 	accessExpiry   time.Duration
 	refreshExpiry  time.Duration
+	logger         zerolog.Logger
 }
 
-func New(authRepo domain.RefreshTokenRepository, userRepo userDomain.UserRepository, userSvc userDomain.UserService, jwtMgr *security.Manager, accessExpiry, refreshExpiry time.Duration) *Service {
+func New(authRepo domain.RefreshTokenRepository, userRepo userDomain.UserRepository, userSvc userDomain.UserService, categorySeeder catDomain.CategorySeeder, jwtMgr *security.Manager, accessExpiry, refreshExpiry time.Duration, logger zerolog.Logger) *Service {
 	return &Service{
 		authRepo:       authRepo,
 		userRepo:       userRepo,
 		userSvc:        userSvc,
+		categorySeeder: categorySeeder,
 		jwtMgr:         jwtMgr,
 		accessExpiry:   accessExpiry,
 		refreshExpiry:  refreshExpiry,
+		logger:         logger,
 	}
 }
 
@@ -51,6 +58,9 @@ func (s *Service) Register(req domain.RegisterRequest) (*domain.AuthResponse, er
 	}
 	if err := s.userRepo.Create(u); err != nil {
 		return nil, apperror.Internal("failed to create user", err)
+	}
+	if err := s.categorySeeder.SeedDefaults(u.ID); err != nil {
+		s.logger.Warn().Str("user_id", u.ID).Err(err).Msg("failed to seed default categories")
 	}
 
 	return s.issueTokens(u.ID, u.Email, u.Name, string(u.Role))

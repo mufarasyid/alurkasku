@@ -12,6 +12,7 @@ func Setup(r *router.Router, svc *subService.Service, logMiddleware func(http.Ha
 	h := subHandler.New(svc)
 
 	r.Handle("POST /api/v1/subscriptions", logMiddleware(authMiddleware(http.HandlerFunc(h.CreateSubscription))))
+	r.Handle("GET /api/v1/subscriptions/me", logMiddleware(authMiddleware(http.HandlerFunc(h.ListMySubscriptions))))
 	r.Handle("GET /api/v1/subscriptions/{id}", logMiddleware(authMiddleware(http.HandlerFunc(h.GetSubscription))))
 	r.Handle("PUT /api/v1/subscriptions/{id}", logMiddleware(authMiddleware(http.HandlerFunc(h.UpdateSubscription))))
 	r.Handle("DELETE /api/v1/subscriptions/{id}", logMiddleware(authMiddleware(http.HandlerFunc(h.DeleteSubscription))))

@@ -18,6 +18,16 @@ internal/
       route/            # Pendaftaran route
     auth/               # Fitur: Authentication (register, login, refresh, logout)
       domain/ repository/ service/ handler/ route/
+    account/            # Fitur: Accounts (per-user, CRUD + bulk delete)
+      domain/ repository/ service/ handler/ route/
+    category/           # Fitur: Categories (per-user, CRUD + bulk delete + seed default)
+      domain/ repository/ service/ handler/ route/
+    budget/             # Fitur: Budgets (per-user, CRUD + bulk delete, FK ke category)
+      domain/ repository/ service/ handler/ route/
+    transaction/        # Fitur: Transactions (per-user, income/expense, update saldo account, overview & breakdown)
+      domain/ repository/ service/ handler/ route/
+    transfer/           # Fitur: Transfers & Withdrawals (per-user, pindah saldo antar account, biaya admin opsional)
+      domain/ repository/ service/ handler/ route/
   platform/             # Cross-cutting concerns
     database/           # Koneksi PostgreSQL + runner migration
     logger/             # Zerolog wrapper
@@ -59,11 +69,44 @@ README.md               # Dokumentasi ini
 | DELETE | `/api/v1/users/{id}` | Hapus user (soft delete) |
 | POST | `/api/v1/subscriptions` | Buat subscription (user/admin) |
 | GET | `/api/v1/subscriptions/{id}` | Detail subscription |
+| GET | `/api/v1/subscriptions/me` | List subscription milik user yang login |
+| POST | `/api/v1/transfers` | Buat transfer antar rekening sendiri (source berkurang amount+fee, destination bertambah amount) |
+| GET | `/api/v1/transfers` | List transfer milik user yang login (`?limit=`) |
+| POST | `/api/v1/withdrawals` | Tarik tunai: bank/wallet → account Cash (endpoints terpisah dari transfer) |
+| GET | `/api/v1/withdrawals` | List tarik tunai milik user yang login (`?limit=`) |
 | PUT | `/api/v1/subscriptions/{id}` | Update subscription |
 | DELETE | `/api/v1/subscriptions/{id}` | Hapus subscription |
 | GET | `/api/v1/subscriptions` | List subscription (pagination) |
+| POST | `/api/v1/accounts` | Buat account (milik user yang login) |
+| GET | `/api/v1/accounts` | List account (filter `?type=Bank\|Wallet&q=`) |
+| GET | `/api/v1/accounts/{id}` | Detail account |
+| PUT | `/api/v1/accounts/{id}` | Update account |
+| DELETE | `/api/v1/accounts/{id}` | Hapus account |
+| POST | `/api/v1/accounts/bulk-delete` | Hapus banyak account `{ids: [...]}` |
+| POST | `/api/v1/categories` | Buat category (milik user yang login) |
+| GET | `/api/v1/categories` | List category (filter `?type=Income\|Expense&q=`) |
+| GET | `/api/v1/categories/{id}` | Detail category |
+| PUT | `/api/v1/categories/{id}` | Update category |
+| DELETE | `/api/v1/categories/{id}` | Hapus category |
+| POST | `/api/v1/categories/bulk-delete` | Hapus banyak category `{ids: [...]}` |
+| POST | `/api/v1/budgets` | Buat budget (milik user yang login) |
+| GET | `/api/v1/budgets` | List budget (filter `?period=Weekly\|Monthly\|Yearly&q=`) |
+| GET | `/api/v1/budgets/{id}` | Detail budget |
+| PUT | `/api/v1/budgets/{id}` | Update budget |
+| DELETE | `/api/v1/budgets/{id}` | Hapus budget |
+| POST | `/api/v1/budgets/bulk-delete` | Hapus banyak budget `{ids: [...]}` |
+| POST | `/api/v1/transactions` | Buat transaction (income/expense) — otomatis update saldo account |
+| GET | `/api/v1/transactions` | List transaction (filter `?period=this-month\|last-month\|last-3-months\|this-year&type=Income\|Expense&q=&limit=`) |
+| GET | `/api/v1/transactions/overview` | Ringkasan period (total/income/expense + `delta_pct` vs periode sebelumnya) |
+| GET | `/api/v1/transactions/breakdown` | Expense per category untuk period (top 5, dengan `pct`) |
 
 **Catatan:** `subscriptions` memiliki `start_date` dan `end_date`; user/auth mengelola via `role` (`admin`/`user`). Soft delete hanya di `users` (`deleted_at`); `subscriptions` hard delete.
+
+**Accounts, categories, budgets** bersifat per-user — semua query di-scope ke `user_id` dari JWT, jadi user hanya bisa melihat dan mengubah datanya sendiri. List endpoint mengembalikan **seluruh** data user (tanpa pagination) karena dataset personal finance kecil dan frontend melakukan search/filter/sort/pagination di sisi client; gunakan query param `type`/`period`/`q` untuk filter di server. `icon` disimpan sebagai nama string (mis. `"Utensils"`) yang dimapping ke komponen icon di frontend. Nominal (`balance`, `limit`, `spent`, `amount`) disimpan sebagai `BIGINT` rupiah tanpa desimal. Budget mereferensikan category via `category_id` (nullable, `ON DELETE SET NULL`); response budget menyertakan nama kategori lewat JOIN (`category`). Status budget (On track / Warning / Over) dihitung di client dari `spent` dan `limit`. Saat register, user baru otomatis mendapat 14 kategori default; user lama mendapat backfill yang sama dari migration `006_create_categories`.
+
+**Accounts** punya tiga tipe: `Bank`, `Wallet`, `Cash` (sejak migration `009`). **Transfer** hanya antar rekening milik sendiri: source berkurang `amount + fee`, destination bertambah `amount`, semuanya dalam satu DB transaction; `fee` bersifat opsional dan tidak dikreditkan ke rekening mana pun. **Withdrawals** (tarik tunai) adalah fitur terpisah (`/api/v1/withdrawals`): source harus `Bank`/`Wallet`, destination harus `Cash`. Keduanya tidak memengaruhi laporan income/expense. Menghapus account menghapus riwayat transaction & transfer miliknya (`ON DELETE CASCADE`).
+
+**Transactions** juga per-user. Setiap create memvalidasi kepemilikan `account_id`/`category_id` (category harus se-`type` dengan transaksi), menolak `amount <= 0`, dan menolak expense yang melebihi saldo account. Insert + update saldo account terjadi dalam satu DB transaction. Tidak ada `PUT`/`DELETE` untuk transactions saat ini — edit/hapus belum diekspos ke API.
 
 ## Cara Menjalankan Project (Pertama Kali)
 
@@ -102,13 +145,25 @@ go mod tidy
 
 ### 6. Jalankan migration
 
-Jalankan semua file `.up.sql` di `db/migrations/` secara berurutan:
+Jalankan semua file `.up.sql` di `db/migrations/` secara berurutan — atau gunakan `make migrate` (runner transactional dengan tabel `schema_migrations`):
+
+```bash
+go run ./cmd/migrate
+```
+
+Jika ingin manual via psql:
 
 ```bash
 psql -h localhost -U postgres -d alurkasku -f db/migrations/001_create_users.up.sql
 psql -h localhost -U postgres -d alurkasku -f db/migrations/002_create_refresh_tokens.up.sql
 psql -h localhost -U postgres -d alurkasku -f db/migrations/003_add_users_role.up.sql
 psql -h localhost -U postgres -d alurkasku -f db/migrations/004_create_subscriptions.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/005_create_accounts.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/006_create_categories.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/007_create_budgets.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/008_create_transactions.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/009_add_account_cash_type.up.sql
+psql -h localhost -U postgres -d alurkasku -f db/migrations/010_create_transfers.up.sql
 ```
 
 ### 7. Jalankan server

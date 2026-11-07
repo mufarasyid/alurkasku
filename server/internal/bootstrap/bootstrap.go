@@ -10,6 +10,22 @@ import (
 	authRepo "github.com/mufarasyid/alurkasku/server/internal/modules/auth/repository"
 	authRoute "github.com/mufarasyid/alurkasku/server/internal/modules/auth/route"
 	authService "github.com/mufarasyid/alurkasku/server/internal/modules/auth/service"
+	accountRepo "github.com/mufarasyid/alurkasku/server/internal/modules/account/repository"
+	accountRoute "github.com/mufarasyid/alurkasku/server/internal/modules/account/route"
+	accountService "github.com/mufarasyid/alurkasku/server/internal/modules/account/service"
+	budgetRepo "github.com/mufarasyid/alurkasku/server/internal/modules/budget/repository"
+	budgetRoute "github.com/mufarasyid/alurkasku/server/internal/modules/budget/route"
+	budgetService "github.com/mufarasyid/alurkasku/server/internal/modules/budget/service"
+	catDomain "github.com/mufarasyid/alurkasku/server/internal/modules/category/domain"
+	catRepo "github.com/mufarasyid/alurkasku/server/internal/modules/category/repository"
+	catRoute "github.com/mufarasyid/alurkasku/server/internal/modules/category/route"
+	catService "github.com/mufarasyid/alurkasku/server/internal/modules/category/service"
+	transactionRepo "github.com/mufarasyid/alurkasku/server/internal/modules/transaction/repository"
+	transactionRoute "github.com/mufarasyid/alurkasku/server/internal/modules/transaction/route"
+	transactionService "github.com/mufarasyid/alurkasku/server/internal/modules/transaction/service"
+	transferRepo "github.com/mufarasyid/alurkasku/server/internal/modules/transfer/repository"
+	transferRoute "github.com/mufarasyid/alurkasku/server/internal/modules/transfer/route"
+	transferService "github.com/mufarasyid/alurkasku/server/internal/modules/transfer/service"
 	userDomain "github.com/mufarasyid/alurkasku/server/internal/modules/user/domain"
 	userRepo "github.com/mufarasyid/alurkasku/server/internal/modules/user/repository"
 	userRoute "github.com/mufarasyid/alurkasku/server/internal/modules/user/route"
@@ -63,8 +79,23 @@ func NewApp(cfg *config.Config) (*App, error) {
 	userRepository := userRepo.NewPostgresRepository(postgres.DB)
 	userSvc := userService.New(userRepository)
 
+	categoryRepository := catRepo.NewPostgresRepository(postgres.DB)
+	categorySvc := catService.New(categoryRepository)
+
 	authRepository := authRepo.NewPostgresRepository(postgres.DB)
-	authSvc := authService.New(authRepository, userRepository, userSvc, jwtMgr, cfg.JWT.AccessTokenExpiry, cfg.JWT.RefreshTokenExpiry)
+	authSvc := authService.New(authRepository, userRepository, userSvc, categorySvc, jwtMgr, cfg.JWT.AccessTokenExpiry, cfg.JWT.RefreshTokenExpiry, log.Logger)
+
+	accountRepository := accountRepo.NewPostgresRepository(postgres.DB)
+	accountSvc := accountService.New(accountRepository)
+
+	budgetRepository := budgetRepo.NewPostgresRepository(postgres.DB)
+	budgetSvc := budgetService.New(budgetRepository, categoryRepository)
+
+	transactionRepository := transactionRepo.NewPostgresRepository(postgres.DB)
+	transactionSvc := transactionService.New(transactionRepository, accountRepository, categoryRepository)
+
+	transferRepository := transferRepo.NewPostgresRepository(postgres.DB)
+	transferSvc := transferService.New(transferRepository, accountRepository)
 
 	r := router.New()
 
@@ -74,6 +105,11 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	userRoute.Setup(r, userSvc, logMiddleware, middleware.Auth(jwtMgr))
 	authRoute.Setup(r, authSvc, logMiddleware)
+	accountRoute.Setup(r, accountSvc, logMiddleware, middleware.Auth(jwtMgr))
+	catRoute.Setup(r, categorySvc, logMiddleware, middleware.Auth(jwtMgr))
+	budgetRoute.Setup(r, budgetSvc, logMiddleware, middleware.Auth(jwtMgr))
+	transactionRoute.Setup(r, transactionSvc, logMiddleware, middleware.Auth(jwtMgr))
+	transferRoute.Setup(r, transferSvc, logMiddleware, middleware.Auth(jwtMgr))
 
 	subRepo := subRepo.NewPostgresRepository(postgres.DB)
 	subSvc := subService.New(subRepo, userRepository)
@@ -101,4 +137,5 @@ func (a *App) Close() error {
 var (
 	_ userDomain.UserRepository         = (*userRepo.PostgresRepository)(nil)
 	_ authDomain.RefreshTokenRepository = (*authRepo.PostgresRepository)(nil)
+	_ catDomain.CategorySeeder          = (*catService.Service)(nil)
 )

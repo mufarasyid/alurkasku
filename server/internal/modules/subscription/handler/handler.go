@@ -87,6 +87,24 @@ func (h *Handler) DeleteSubscription(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) ListMySubscriptions(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFrom(r)
+	if userID == "" {
+		httpx.WriteError(w, apperror.Unauthorized("authentication required"), http.StatusUnauthorized)
+		return
+	}
+	subs, err := h.svc.ListByUser(userID)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
+	}
+	resp := make([]domain.SubscriptionResponse, len(subs))
+	for i, s := range subs {
+		resp[i] = domain.ToResponse(s)
+	}
+	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+}
+
 func (h *Handler) ListSubscriptions(w http.ResponseWriter, r *http.Request) {
 	page := 1
 	pageSize := 10
