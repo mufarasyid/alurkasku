@@ -38,12 +38,12 @@ import {
   deletePatunganSettlement,
 } from "../../services/patungan";
 
-const splitLabel = (value) => ({ equal: "Rata", nominal: "Nominal", percent: "Persentase" })[value] ?? value;
+const splitLabel = (value) => ({ equal: "Equal", nominal: "Fixed amount", percent: "Percent" })[value] ?? value;
 
 const netLabel = (net) => {
-  if (net > 0) return { text: `Ditombok ${formatIDR(net)}`, className: "text-emerald-700 bg-emerald-500/10" };
-  if (net < 0) return { text: `Perlu bayar ${formatIDR(Math.abs(net))}`, className: "text-orange-700 bg-orange-500/10" };
-  return { text: "Lunas", className: "text-muted-foreground bg-muted" };
+  if (net > 0) return { text: `Covered ${formatIDR(net)}`, className: "text-emerald-700 bg-emerald-500/10" };
+  if (net < 0) return { text: `Owes ${formatIDR(Math.abs(net))}`, className: "text-orange-700 bg-orange-500/10" };
+  return { text: "Settled", className: "text-muted-foreground bg-muted" };
 };
 
 const PatunganDetailPage = () => {
@@ -109,7 +109,7 @@ const PatunganDetailPage = () => {
           setPayer((prev) => prev || nextParticipants[0].id);
         }
       })
-      .catch((err) => setLoadError(err.message || "Gagal memuat detail patungan."))
+      .catch((err) => setLoadError(err.message || "Failed to load patungan detail."))
       .finally(() => setIsLoading(false));
   };
 
@@ -134,7 +134,7 @@ const PatunganDetailPage = () => {
       setParticipants((prev) => [...prev, res.data]);
       setMemberName("");
     } catch (err) {
-      setMemberError(err.message || "Gagal menambah peserta.");
+      setMemberError(err.message || "Failed to add participant.");
     }
   };
 
@@ -147,7 +147,7 @@ const PatunganDetailPage = () => {
       setParticipants((prev) => prev.map((p) => (p.id === memberId ? res.data : p)));
       setLinkInputs((prev) => ({ ...prev, [memberId]: "" }));
     } catch (err) {
-      setLinkError(err.message || "Gagal menautkan akun.");
+      setLinkError(err.message || "Failed to link account.");
     }
   };
 
@@ -159,7 +159,7 @@ const PatunganDetailPage = () => {
       setPendingDeleteMember(null);
       loadAll();
     } catch (err) {
-      setMemberError(err.message || "Gagal menghapus peserta.");
+      setMemberError(err.message || "Failed to delete participant.");
       setPendingDeleteMember(null);
     }
   };
@@ -185,9 +185,9 @@ const PatunganDetailPage = () => {
   const handleCreateExpense = async (event) => {
     event.preventDefault();
     const totalAmount = Number(total);
-    if (!payer) { setExpenseError("Pilih siapa yang membayar."); return; }
-    if (!Number.isFinite(totalAmount) || totalAmount <= 0) { setExpenseError("Total harus lebih dari 0."); return; }
-    if (selectedIds.length === 0) { setExpenseError("Pilih minimal 1 peserta untuk patungan."); return; }
+    if (!payer) { setExpenseError("Select who paid."); return; }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) { setExpenseError("Total must be greater than 0."); return; }
+    if (selectedIds.length === 0) { setExpenseError("Select at least 1 participant to split with."); return; }
 
     const splits = selectedIds.map((memberId) => {
       if (splitType === "nominal") return { member_id: memberId, share_amount: Number(shares[memberId] ?? 0) };
@@ -197,11 +197,11 @@ const PatunganDetailPage = () => {
 
     if (splitType === "nominal") {
       const sum = splits.reduce((acc, s) => acc + s.share_amount, 0);
-      if (sum !== totalAmount) { setExpenseError(`Total nominal ${formatIDR(sum)} tidak cocok dengan ${formatIDR(totalAmount)}.`); return; }
+      if (sum !== totalAmount) { setExpenseError(`Total fixed amount ${formatIDR(sum)} does not match ${formatIDR(totalAmount)}.`); return; }
     }
     if (splitType === "percent") {
       const sum = splits.reduce((acc, s) => acc + s.percent, 0);
-      if (sum !== 100) { setExpenseError("Total persentase harus 100."); return; }
+      if (sum !== 100) { setExpenseError("Total percentage must be 100."); return; }
     }
 
     try {
@@ -216,7 +216,7 @@ const PatunganDetailPage = () => {
       setExpenseOpen(false);
       loadAll();
     } catch (err) {
-      setExpenseError(err.message || "Gagal menyimpan pengeluaran.");
+      setExpenseError(err.message || "Failed to save expense.");
     }
   };
 
@@ -228,7 +228,7 @@ const PatunganDetailPage = () => {
       setPendingDeleteExpense(null);
       loadAll();
     } catch (err) {
-      setLoadError(err.message || "Gagal menghapus pengeluaran.");
+      setLoadError(err.message || "Failed to delete expense.");
       setPendingDeleteExpense(null);
     }
   };
@@ -236,9 +236,9 @@ const PatunganDetailPage = () => {
   const handleCreateSettle = async (event) => {
     event.preventDefault();
     const amt = Number(amount);
-    if (!fromMember || !toMember) { setSettleError("Pilih pengirim dan penerima."); return; }
-    if (fromMember === toMember) { setSettleError("Pengirim dan penerima harus beda."); return; }
-    if (!Number.isFinite(amt) || amt <= 0) { setSettleError("Nominal harus lebih dari 0."); return; }
+    if (!fromMember || !toMember) { setSettleError("Select sender and receiver."); return; }
+    if (fromMember === toMember) { setSettleError("Sender and receiver must be different."); return; }
+    if (!Number.isFinite(amt) || amt <= 0) { setSettleError("Amount must be greater than 0."); return; }
     try {
       const res = await createPatunganSettlement(id, {
         from_member_id: fromMember,
@@ -251,7 +251,7 @@ const PatunganDetailPage = () => {
       setFromMember(""); setToMember(""); setAmount(""); setSettleNote("");
       loadAll();
     } catch (err) {
-      setSettleError(err.message || "Gagal menyimpan pelunasan.");
+      setSettleError(err.message || "Failed to save settlement.");
     }
   };
 
@@ -263,7 +263,7 @@ const PatunganDetailPage = () => {
       setPendingDeleteSettle(null);
       loadAll();
     } catch (err) {
-      setLoadError(err.message || "Gagal menghapus pelunasan.");
+      setLoadError(err.message || "Failed to delete settlement.");
       setPendingDeleteSettle(null);
     }
   };
@@ -282,7 +282,7 @@ const PatunganDetailPage = () => {
       setGroup((prev) => ({ ...prev, ...res.data }));
       setEditOpen(false);
     } catch (err) {
-      setEditError(err.message || "Gagal mengubah group.");
+      setEditError(err.message || "Failed to update group.");
     }
   };
 
@@ -300,7 +300,7 @@ const PatunganDetailPage = () => {
 
   if (isLoading) {
     return (
-      <div className="flex w-full flex-col gap-6" aria-busy="true" aria-label="Memuat detail patungan">
+      <div className="flex w-full flex-col gap-6" aria-busy="true" aria-label="Loading patungan detail">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-4 w-80" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -319,12 +319,12 @@ const PatunganDetailPage = () => {
           onClick={() => navigate("/dashboard/patungan")}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
-          <ArrowLeft className="size-4" /> Kembali
+          <ArrowLeft className="size-4" /> Back
         </button>
         {loadError ? (
           <Card className="border-destructive/30 p-6 text-destructive">{loadError}</Card>
         ) : (
-          <Card className="p-6 text-sm text-muted-foreground">Patungan tidak ditemukan.</Card>
+          <Card className="p-6 text-sm text-muted-foreground">Patungan group not found.</Card>
         )}
       </div>
     );
@@ -339,25 +339,25 @@ const PatunganDetailPage = () => {
             onClick={() => navigate("/dashboard/patungan")}
             className="mb-1 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
-            <ArrowLeft className="size-4" /> Semua patungan
+            <ArrowLeft className="size-4" /> All patungan groups
           </button>
           <h1 className="text-2xl font-semibold lg:text-3xl">{group.name}</h1>
           {group.note && <p className="text-sm text-muted-foreground">{group.note}</p>}
           <p className="text-xs text-muted-foreground">
-            {participants.length} peserta, total {formatIDR(summary?.total_expense ?? group.total_expense ?? 0)}
+            {participants.length} participants, total {formatIDR(summary?.total_expense ?? group.total_expense ?? 0)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={openEdit} className="h-9 rounded-full px-5">
-            <p>Ubah Group</p>
+            <p>Edit group</p>
           </Button>
           <Button onClick={openExpense} className="h-9 rounded-full px-5">
             <Plus size={17} strokeWidth={2} />
-            <p>Tambah Pengeluaran</p>
+            <p>Add expense</p>
           </Button>
           <Button variant="outline" onClick={() => { setFromMember(""); setToMember(""); setAmount(""); setSettleNote(""); setSettleError(""); setSettleOpen(true); }} className="h-9 rounded-full px-5">
             <Check size={17} strokeWidth={2} />
-            <p>Catat Pelunasan</p>
+            <p>Record settlement</p>
           </Button>
         </div>
       </div>
@@ -376,17 +376,17 @@ const PatunganDetailPage = () => {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="h-auto flex-wrap justify-start rounded-xl p-1">
-          <TabsTrigger value="ringkasan">Ringkasan</TabsTrigger>
-          <TabsTrigger value="pengeluaran">Pengeluaran ({expenses.length})</TabsTrigger>
-          <TabsTrigger value="peserta">Peserta ({participants.length})</TabsTrigger>
-          <TabsTrigger value="pelunasan">Pelunasan ({settlements.length})</TabsTrigger>
+          <TabsTrigger value="ringkasan">Overview</TabsTrigger>
+          <TabsTrigger value="pengeluaran">Expenses ({expenses.length})</TabsTrigger>
+          <TabsTrigger value="peserta">Participants ({participants.length})</TabsTrigger>
+          <TabsTrigger value="pelunasan">Settlements ({settlements.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ringkasan" className="mt-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <Card className="lg:col-span-3">
               <CardHeader>
-                <CardTitle className="text-base">Saldo per peserta</CardTitle>
+                <CardTitle className="text-base">Balance per participant</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 {summary?.balances?.length ? (
@@ -394,9 +394,9 @@ const PatunganDetailPage = () => {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
-                          <th className="px-4 py-3 font-medium">Peserta</th>
-                          <th className="px-4 py-3 text-right font-medium">Bayar</th>
-                          <th className="px-4 py-3 text-right font-medium">Patungan</th>
+                          <th className="px-4 py-3 font-medium">Participant</th>
+                          <th className="px-4 py-3 text-right font-medium">Paid</th>
+                          <th className="px-4 py-3 text-right font-medium">Share</th>
                           <th className="px-4 py-3 text-right font-medium">Status</th>
                         </tr>
                       </thead>
@@ -409,7 +409,7 @@ const PatunganDetailPage = () => {
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium">{b.display_name}</span>
                                   <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", b.is_guest ? "bg-amber-500/10 text-amber-700" : "bg-sky-500/10 text-sky-700")}>
-                                    {b.is_guest ? "Guest" : "Akun"}
+                                    {b.is_guest ? "Guest" : "Account"}
                                   </span>
                                 </div>
                               </td>
@@ -426,7 +426,7 @@ const PatunganDetailPage = () => {
                   </div>
                 ) : (
                   <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    Belum ada pengeluaran. Tambah pengeluaran untuk melihat saldo.
+                    No expenses yet. Add an expense to see balances.
                   </p>
                 )}
               </CardContent>
@@ -434,21 +434,21 @@ const PatunganDetailPage = () => {
 
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="text-base">Saran pelunasan</CardTitle>
+                <CardTitle className="text-base">Suggested settlements</CardTitle>
               </CardHeader>
               <CardContent>
                 {summary?.suggestions?.length ? (
                   <div className="flex flex-col gap-2">
                     {summary.suggestions.map((s, i) => (
                       <div key={`${s.from_member_id}-${s.to_member_id}-${i}`} className="flex items-center justify-between gap-3 rounded-xl border border-border/60 px-4 py-3">
-                        <span className="text-sm"><span className="font-medium">{s.from_name}</span> bayar ke <span className="font-medium">{s.to_name}</span></span>
+                        <span className="text-sm"><span className="font-medium">{s.from_name}</span> pays <span className="font-medium">{s.to_name}</span></span>
                         <span className="shrink-0 font-semibold tabular-nums">{formatIDR(s.amount)}</span>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {expenses.length === 0 ? "Saran pelunasan muncul setelah ada pengeluaran." : "Semua sudah lunas."}
+                    {expenses.length === 0 ? "Suggestions appear after the first expense." : "All settled."}
                   </p>
                 )}
               </CardContent>
@@ -465,11 +465,11 @@ const PatunganDetailPage = () => {
                     <div key={e.id} className="flex items-start justify-between gap-4 px-4 py-4">
                       <div className="flex min-w-0 flex-col gap-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium">{e.note || "Pengeluaran"}</span>
+                          <span className="font-medium">{e.note || "Expense"}</span>
                           <span className="text-xs text-muted-foreground">{formatShortDate(e.occurred_at)}</span>
                         </div>
                         <span className="text-sm text-muted-foreground">
-                          {participantMap.get(e.payer_member_id)?.display_name ?? e.payer_name} membayar
+                          {participantMap.get(e.payer_member_id)?.display_name ?? e.payer_name} paid
                         </span>
                         {e.splits?.length > 0 && (
                           <span className="text-xs text-muted-foreground">
@@ -481,7 +481,7 @@ const PatunganDetailPage = () => {
                         <span className="font-semibold tabular-nums">{formatIDR(e.total_amount)}</span>
                         <button
                           type="button"
-                          aria-label={`Hapus pengeluaran ${e.note || "tanpa catatan"}`}
+                          aria-label={`Delete expense ${e.note || "no note"}`}
                           className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           onClick={() => setPendingDeleteExpense(e)}
                         >
@@ -493,7 +493,7 @@ const PatunganDetailPage = () => {
                 </div>
               ) : (
                 <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  Belum ada pengeluaran. Klik Tambah Pengeluaran untuk mulai.
+                  No expenses yet. Click Add expense to start.
                 </p>
               )}
             </CardContent>
@@ -508,13 +508,13 @@ const PatunganDetailPage = () => {
                   <Input
                     value={memberName}
                     onChange={(event) => setMemberName(event.target.value)}
-                    placeholder="Tulis nama peserta baru"
-                    aria-label="Nama peserta baru"
+                    placeholder="Type a new participant name"
+                    aria-label="New participant name"
                     className="flex-1"
                   />
                   <Button type="submit" className="h-9 rounded-full px-5 shrink-0">
                     <Plus size={17} strokeWidth={2} />
-                    <p>Tambah</p>
+                    <p>Add</p>
                   </Button>
                 </form>
                 {memberError && <p role="alert" className="text-sm text-destructive">{memberError}</p>}
@@ -529,7 +529,7 @@ const PatunganDetailPage = () => {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{p.display_name}</span>
                         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider", p.is_guest ? "bg-amber-500/10 text-amber-700" : "bg-sky-500/10 text-sky-700")}>
-                          {p.is_guest ? "Guest" : "Akun"}
+                          {p.is_guest ? "Guest" : "Account"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -538,16 +538,16 @@ const PatunganDetailPage = () => {
                             <Input
                               value={linkInputs[p.id] ?? ""}
                               onChange={(event) => setLinkInputs((prev) => ({ ...prev, [p.id]: event.target.value }))}
-                              placeholder="Email akun terdaftar"
-                              aria-label={`Tautkan akun untuk ${p.display_name}`}
+                              placeholder="Email of a registered account"
+                              aria-label={`Link account for ${p.display_name}`}
                               className="h-8 w-full sm:w-52 text-sm"
                             />
-                            <Button type="button" variant="outline" className="h-8 shrink-0" onClick={() => handleLink(p.id)}>Tautkan</Button>
+                            <Button type="button" variant="outline" className="h-8 shrink-0" onClick={() => handleLink(p.id)}>Link</Button>
                           </div>
                         )}
                         <button
                           type="button"
-                          aria-label={`Hapus peserta ${p.display_name}`}
+                          aria-label={`Delete participant ${p.display_name}`}
                           className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           onClick={() => setPendingDeleteMember(p)}
                         >
@@ -571,7 +571,7 @@ const PatunganDetailPage = () => {
                   {settlements.map((s) => (
                     <div key={s.id} className="flex items-center justify-between gap-4 px-4 py-4">
                       <div className="flex min-w-0 flex-col gap-1">
-                        <span className="text-sm"><span className="font-medium">{s.from_name}</span> bayar ke <span className="font-medium">{s.to_name}</span></span>
+                        <span className="text-sm"><span className="font-medium">{s.from_name}</span> pays <span className="font-medium">{s.to_name}</span></span>
                         {s.note && <span className="text-xs text-muted-foreground">{s.note}</span>}
                         <span className="text-xs text-muted-foreground">{formatShortDate(s.occurred_at)}</span>
                       </div>
@@ -579,7 +579,7 @@ const PatunganDetailPage = () => {
                         <span className="font-semibold tabular-nums">{formatIDR(s.amount)}</span>
                         <button
                           type="button"
-                          aria-label={`Hapus pelunasan dari ${s.from_name} ke ${s.to_name}`}
+                          aria-label={`Delete settlement from ${s.from_name} to ${s.to_name}`}
                           className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           onClick={() => setPendingDeleteSettle(s)}
                         >
@@ -591,7 +591,7 @@ const PatunganDetailPage = () => {
                 </div>
               ) : (
                 <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  Belum ada pelunasan. Catat pelunasan saat ada yang membayar ke peserta lain.
+                  No settlements yet. Record a settlement when someone pays another participant.
                 </p>
               )}
             </CardContent>
@@ -603,16 +603,16 @@ const PatunganDetailPage = () => {
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleCreateExpense}>
             <DialogHeader>
-              <DialogTitle>Tambah pengeluaran</DialogTitle>
-              <DialogDescription>Pilih siapa yang membayar, lalu bagi ke peserta.</DialogDescription>
+              <DialogTitle>Add expense</DialogTitle>
+              <DialogDescription>Select who paid, then split it among participants.</DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="expense-payer" className="text-sm font-medium">Dibayar oleh</label>
+                <label htmlFor="expense-payer" className="text-sm font-medium">Paid by</label>
                 <Select value={payer} onValueChange={setPayer}>
                   <SelectTrigger id="expense-payer" className="w-full">
-                    <SelectValue placeholder="Pilih peserta" />
+                    <SelectValue placeholder="Select a participant" />
                   </SelectTrigger>
                   <SelectContent side="bottom" sideOffset={6}>
                     {participants.map((p) => (
@@ -624,31 +624,31 @@ const PatunganDetailPage = () => {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="expense-total" className="text-sm font-medium">Total (Rp)</label>
+                  <label htmlFor="expense-total" className="text-sm font-medium">Total (IDR)</label>
                   <RupiahInput id="expense-total" value={total} onChange={(event) => setTotal(event.target.value)} placeholder="300.000" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="expense-split" className="text-sm font-medium">Cara bagi</label>
+                  <label htmlFor="expense-split" className="text-sm font-medium">Split method</label>
                   <Select value={splitType} onValueChange={setSplitType}>
                     <SelectTrigger id="expense-split" className="w-full">
-                      <SelectValue placeholder="Cara bagi" />
+                      <SelectValue placeholder="Split method" />
                     </SelectTrigger>
                     <SelectContent side="bottom" sideOffset={6}>
-                      <SelectItem value="equal">Rata</SelectItem>
-                      <SelectItem value="nominal">Nominal</SelectItem>
-                      <SelectItem value="percent">Persentase</SelectItem>
+                      <SelectItem value="equal">Equal</SelectItem>
+                      <SelectItem value="nominal">Fixed amount</SelectItem>
+                      <SelectItem value="percent">Percent</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="expense-note" className="text-sm font-medium">Catatan</label>
-                <Input id="expense-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Contoh: Lapangan padel" />
+                <label htmlFor="expense-note" className="text-sm font-medium">Note</label>
+                <Input id="expense-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. Padel court" />
               </div>
 
               <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Dibagi ke</span>
+                <span className="text-sm font-medium">Split among</span>
                 {participants.map((p) => (
                   <div key={p.id} className="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2">
                     <input
@@ -660,7 +660,7 @@ const PatunganDetailPage = () => {
                     />
                     <label htmlFor={`split-${p.id}`} className="flex-1 text-sm">{p.display_name}</label>
                     {selected[p.id] && splitType === "equal" && (
-                      <span className="text-sm font-medium tabular-nums">{formatIDR(equalShares[p.id] ?? 0)}/orang</span>
+                      <span className="text-sm font-medium tabular-nums">{formatIDR(equalShares[p.id] ?? 0)}/person</span>
                     )}
                     {selected[p.id] && splitType !== "equal" && (
                       <Input
@@ -668,7 +668,7 @@ const PatunganDetailPage = () => {
                         onChange={(event) => setShares((prev) => ({ ...prev, [p.id]: event.target.value }))}
                         placeholder={splitType === "percent" ? "%" : "Rp"}
                         inputMode="numeric"
-                        aria-label={`Bagian ${p.display_name}`}
+                        aria-label={`Share for ${p.display_name}`}
                         className="h-8 w-28 text-right"
                       />
                     )}
@@ -676,9 +676,9 @@ const PatunganDetailPage = () => {
                 ))}
                 <p className="text-xs text-muted-foreground">
                   Mode: {splitLabel(splitType)}.
-                  {splitType === "equal" && ` Estimasi ${(selectedIds[0] ? formatIDR(equalShares[selectedIds[0]] ?? 0) : "-")} per orang.`}
-                  {splitType === "nominal" && " Total nominal harus sama dengan total."}
-                  {splitType === "percent" && " Total persen harus 100."}
+                  {splitType === "equal" && ` Estimate ${(selectedIds[0] ? formatIDR(equalShares[selectedIds[0]] ?? 0) : "-")} per person.`}
+                  {splitType === "nominal" && " Fixed amounts must add up to the total."}
+                  {splitType === "percent" && " Total percentage must be 100."}
                 </p>
               </div>
             </div>
@@ -690,8 +690,8 @@ const PatunganDetailPage = () => {
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setExpenseOpen(false)}>Batal</Button>
-              <Button type="submit">Simpan</Button>
+              <Button type="button" variant="outline" onClick={() => setExpenseOpen(false)}>Cancel</Button>
+              <Button type="submit">Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -701,25 +701,25 @@ const PatunganDetailPage = () => {
         <DialogContent>
           <form onSubmit={handleCreateSettle}>
             <DialogHeader>
-              <DialogTitle>Catat pelunasan</DialogTitle>
-              <DialogDescription>Catat saat satu peserta membayar ke peserta lain.</DialogDescription>
+              <DialogTitle>Record settlement</DialogTitle>
+              <DialogDescription>Record when one participant pays another.</DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="settle-from" className="text-sm font-medium">Dari</label>
+                  <label htmlFor="settle-from" className="text-sm font-medium">From</label>
                   <Select value={fromMember} onValueChange={setFromMember}>
-                    <SelectTrigger id="settle-from" className="w-full"><SelectValue placeholder="Pengirim" /></SelectTrigger>
+                    <SelectTrigger id="settle-from" className="w-full"><SelectValue placeholder="Sender" /></SelectTrigger>
                     <SelectContent side="bottom" sideOffset={6}>
                       {participants.map((p) => <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="settle-to" className="text-sm font-medium">Ke</label>
+                  <label htmlFor="settle-to" className="text-sm font-medium">To</label>
                   <Select value={toMember} onValueChange={setToMember}>
-                    <SelectTrigger id="settle-to" className="w-full"><SelectValue placeholder="Penerima" /></SelectTrigger>
+                    <SelectTrigger id="settle-to" className="w-full"><SelectValue placeholder="Receiver" /></SelectTrigger>
                     <SelectContent side="bottom" sideOffset={6}>
                       {participants.map((p) => <SelectItem key={p.id} value={p.id}>{p.display_name}</SelectItem>)}
                     </SelectContent>
@@ -727,12 +727,12 @@ const PatunganDetailPage = () => {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="settle-amount" className="text-sm font-medium">Nominal (Rp)</label>
+                <label htmlFor="settle-amount" className="text-sm font-medium">Amount (IDR)</label>
                 <RupiahInput id="settle-amount" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="50.000" />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="settle-note" className="text-sm font-medium">Catatan (opsional)</label>
-                <Input id="settle-note" value={settleNote} onChange={(event) => setSettleNote(event.target.value)} placeholder="Contoh: Bayar lapangan" />
+                <label htmlFor="settle-note" className="text-sm font-medium">Note (optional)</label>
+                <Input id="settle-note" value={settleNote} onChange={(event) => setSettleNote(event.target.value)} placeholder="e.g. Court fee" />
               </div>
             </div>
 
@@ -743,8 +743,8 @@ const PatunganDetailPage = () => {
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setSettleOpen(false)}>Batal</Button>
-              <Button type="submit">Simpan</Button>
+              <Button type="button" variant="outline" onClick={() => setSettleOpen(false)}>Cancel</Button>
+              <Button type="submit">Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -753,14 +753,14 @@ const PatunganDetailPage = () => {
       <Dialog open={pendingDeleteMember !== null} onOpenChange={(open) => !open && setPendingDeleteMember(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Hapus peserta</DialogTitle>
+            <DialogTitle>Delete participant</DialogTitle>
             <DialogDescription>
-              {pendingDeleteMember ? `Hapus ${pendingDeleteMember.display_name}? Peserta hanya bisa dihapus kalau saldonya sudah nol.` : ""}
+              {pendingDeleteMember ? `Delete ${pendingDeleteMember.display_name}? A participant can only be removed when their balance is zero.` : ""}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDeleteMember(null)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteMember}><Trash2 size={17} strokeWidth={1.8} /> Hapus</Button>
+            <Button variant="outline" onClick={() => setPendingDeleteMember(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteMember}><Trash2 size={17} strokeWidth={1.8} /> Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -768,14 +768,14 @@ const PatunganDetailPage = () => {
       <Dialog open={pendingDeleteExpense !== null} onOpenChange={(open) => !open && setPendingDeleteExpense(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Hapus pengeluaran</DialogTitle>
+            <DialogTitle>Delete expense</DialogTitle>
             <DialogDescription>
-              {pendingDeleteExpense ? `Hapus ${pendingDeleteExpense.note || "pengeluaran"} senilai ${formatIDR(pendingDeleteExpense.total_amount)}?` : ""}
+              {pendingDeleteExpense ? `Delete ${pendingDeleteExpense.note || "expense"} for ${formatIDR(pendingDeleteExpense.total_amount)}?` : ""}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDeleteExpense(null)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteExpense}><Trash2 size={17} strokeWidth={1.8} /> Hapus</Button>
+            <Button variant="outline" onClick={() => setPendingDeleteExpense(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteExpense}><Trash2 size={17} strokeWidth={1.8} /> Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -783,14 +783,14 @@ const PatunganDetailPage = () => {
       <Dialog open={pendingDeleteSettle !== null} onOpenChange={(open) => !open && setPendingDeleteSettle(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Hapus pelunasan</DialogTitle>
+            <DialogTitle>Delete settlement</DialogTitle>
             <DialogDescription>
-              {pendingDeleteSettle ? `Hapus pelunasan ${pendingDeleteSettle.from_name} ke ${pendingDeleteSettle.to_name} senilai ${formatIDR(pendingDeleteSettle.amount)}?` : ""}
+              {pendingDeleteSettle ? `Delete settlement from ${pendingDeleteSettle.from_name} to ${pendingDeleteSettle.to_name} for ${formatIDR(pendingDeleteSettle.amount)}?` : ""}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDeleteSettle(null)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteSettle}><Trash2 size={17} strokeWidth={1.8} /> Hapus</Button>
+            <Button variant="outline" onClick={() => setPendingDeleteSettle(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteSettle}><Trash2 size={17} strokeWidth={1.8} /> Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -799,17 +799,17 @@ const PatunganDetailPage = () => {
         <DialogContent>
           <form onSubmit={handleEdit}>
             <DialogHeader>
-              <DialogTitle>Ubah group</DialogTitle>
-              <DialogDescription>Nama dan catatan group. Hanya pemilik group yang bisa mengubah.</DialogDescription>
+              <DialogTitle>Edit group</DialogTitle>
+              <DialogDescription>Group name and note. Only the group owner can edit.</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="edit-name" className="text-sm font-medium">Nama group</label>
-                <Input id="edit-name" autoFocus value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="Contoh: Padel Sabtu" required />
+                <label htmlFor="edit-name" className="text-sm font-medium">Group name</label>
+                <Input id="edit-name" autoFocus value={editName} onChange={(event) => setEditName(event.target.value)} placeholder="e.g. Saturday Padel" required />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="edit-note" className="text-sm font-medium">Catatan (opsional)</label>
-                <Input id="edit-note" value={editNote} onChange={(event) => setEditNote(event.target.value)} placeholder="Contoh: Sewa lapangan + bola" />
+                <label htmlFor="edit-note" className="text-sm font-medium">Note (optional)</label>
+                <Input id="edit-note" value={editNote} onChange={(event) => setEditNote(event.target.value)} placeholder="e.g. Court rental + balls" />
               </div>
             </div>
             {editError && (
@@ -818,8 +818,8 @@ const PatunganDetailPage = () => {
               </p>
             )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Batal</Button>
-              <Button type="submit">Simpan</Button>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button type="submit">Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>
