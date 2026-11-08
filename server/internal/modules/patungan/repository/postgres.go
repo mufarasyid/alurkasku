@@ -57,7 +57,7 @@ func (r *PostgresRepository) CreateGroup(g *domain.Group, members []domain.Parti
 			m.GroupID, m.DisplayName, m.LinkedUserID,
 		).Scan(&m.ID, &m.CreatedAt); err != nil {
 			if isDuplicate(err) {
-				return apperror.Conflict("nama peserta sudah ada di group ini")
+				return apperror.Conflict("participant name already exists in this group")
 			}
 			return err
 		}
@@ -117,7 +117,7 @@ func (r *PostgresRepository) UpdateGroup(userID, groupID, name, note string) (*d
 		return nil, err
 	}
 	if affected == 0 {
-		return nil, apperror.NotFound("group tidak ditemukan")
+		return nil, apperror.NotFound("group not found")
 	}
 	return r.GetGroup(userID, groupID)
 }
@@ -132,7 +132,7 @@ func (r *PostgresRepository) DeleteGroup(userID, groupID string) error {
 		return err
 	}
 	if affected == 0 {
-		return apperror.NotFound("group tidak ditemukan")
+		return apperror.NotFound("group not found")
 	}
 	return nil
 }
@@ -181,7 +181,7 @@ func (r *PostgresRepository) AddParticipant(p *domain.Participant) error {
 		p.GroupID, p.DisplayName, p.LinkedUserID,
 	).Scan(&p.ID, &p.CreatedAt); err != nil {
 		if isDuplicate(err) {
-			return apperror.Conflict("nama peserta sudah ada di group ini")
+			return apperror.Conflict("participant name already exists in this group")
 		}
 		return err
 	}
@@ -198,7 +198,7 @@ func (r *PostgresRepository) DeleteParticipant(groupID, memberID string) error {
 		return err
 	}
 	if affected == 0 {
-		return apperror.NotFound("peserta tidak ditemukan")
+		return apperror.NotFound("participant not found")
 	}
 	return nil
 }
@@ -209,10 +209,10 @@ func (r *PostgresRepository) LinkParticipant(groupID, memberID, linkedUserID str
 		 WHERE group_id = $2 AND id = $3 RETURNING id`, linkedUserID, groupID, memberID,
 	).Scan(new(string)); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, apperror.NotFound("peserta tidak ditemukan")
+			return nil, apperror.NotFound("participant not found")
 		}
 		if isDuplicate(err) {
-			return nil, apperror.Conflict("akun ini sudah menjadi peserta group ini")
+			return nil, apperror.Conflict("this account is already a participant in this group")
 		}
 		return nil, err
 	}
@@ -332,7 +332,7 @@ func (r *PostgresRepository) DeleteExpense(groupID, expenseID string) error {
 		return err
 	}
 	if affected == 0 {
-		return apperror.NotFound("expense tidak ditemukan")
+		return apperror.NotFound("expense not found")
 	}
 	return nil
 }
@@ -395,7 +395,7 @@ func (r *PostgresRepository) DeleteSettlement(groupID, settlementID string) erro
 		return err
 	}
 	if affected == 0 {
-		return apperror.NotFound("pelunasan tidak ditemukan")
+		return apperror.NotFound("settlement not found")
 	}
 	return nil
 }

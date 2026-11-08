@@ -44,7 +44,7 @@ func (s *Service) accessibleGroup(userID, groupID string) (*domain.Group, bool, 
 		return nil, false, apperror.Internal("failed to get group", err)
 	}
 	if g == nil {
-		return nil, false, apperror.NotFound("group tidak ditemukan")
+		return nil, false, apperror.NotFound("group not found")
 	}
 	return g, g.CreatorUserID == userID, nil
 }
@@ -60,7 +60,7 @@ func (s *Service) resolveUserID(linked *string, email string) (*string, error) {
 			return nil, apperror.Internal("failed to get user", err)
 		}
 		if u == nil {
-			return nil, apperror.BadRequest("user tidak ditemukan")
+			return nil, apperror.BadRequest("user not found")
 		}
 		return &id, nil
 	}
@@ -73,7 +73,7 @@ func (s *Service) resolveUserID(linked *string, email string) (*string, error) {
 		return nil, apperror.Internal("failed to get user", err)
 	}
 	if u == nil {
-		return nil, apperror.BadRequest("user dengan email ini belum register")
+		return nil, apperror.BadRequest("no registered user with this email")
 	}
 	id := u.ID
 	return &id, nil
@@ -94,13 +94,13 @@ func normalizeMembers(inputs []domain.MemberInput) []domain.Participant {
 func (s *Service) CreateGroup(userID string, req domain.CreateGroupRequest) (*domain.Group, []domain.Participant, error) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		return nil, nil, apperror.BadRequest("nama group wajib diisi")
+		return nil, nil, apperror.BadRequest("group name is required")
 	}
 	if len(name) > 120 {
-		return nil, nil, apperror.BadRequest("nama group maksimal 120 karakter")
+		return nil, nil, apperror.BadRequest("group name must be at most 120 characters")
 	}
 	if len(strings.TrimSpace(req.Note)) > 255 {
-		return nil, nil, apperror.BadRequest("note maksimal 255 karakter")
+		return nil, nil, apperror.BadRequest("note must be at most 255 characters")
 	}
 
 	creatorUser, err := s.userRepo.GetByID(userID)
@@ -117,14 +117,14 @@ func (s *Service) CreateGroup(userID string, req domain.CreateGroupRequest) (*do
 
 	manual := normalizeMembers(req.Members)
 	if len(manual) > 50 {
-		return nil, nil, apperror.BadRequest("maksimal 50 peserta per group")
+		return nil, nil, apperror.BadRequest("maximum 50 participants per group")
 	}
 
 	seen := map[string]bool{strings.ToLower(creatorName): true}
 	for _, m := range manual {
 		key := strings.ToLower(m.DisplayName)
 		if seen[key] {
-			return nil, nil, apperror.BadRequest("nama peserta dobel: " + m.DisplayName)
+			return nil, nil, apperror.BadRequest("duplicate participant name: " + m.DisplayName)
 		}
 		seen[key] = true
 	}
@@ -188,14 +188,14 @@ func (s *Service) UpdateGroup(userID, groupID string, req domain.UpdateGroupRequ
 		return nil, err
 	}
 	if !isOwner {
-		return nil, apperror.Forbidden("hanya pemilik group yang bisa mengubah group")
+		return nil, apperror.Forbidden("only the group owner can update the group")
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" || len(name) > 120 {
-		return nil, apperror.BadRequest("nama group maksimal 120 karakter")
+		return nil, apperror.BadRequest("group name must be at most 120 characters")
 	}
 	if len(strings.TrimSpace(req.Note)) > 255 {
-		return nil, apperror.BadRequest("note maksimal 255 karakter")
+		return nil, apperror.BadRequest("note must be at most 255 characters")
 	}
 	updated, err := s.repo.UpdateGroup(userID, g.ID, name, strings.TrimSpace(req.Note))
 	if err != nil {
@@ -213,7 +213,7 @@ func (s *Service) DeleteGroup(userID, groupID string) error {
 		return err
 	}
 	if !isOwner {
-		return apperror.Forbidden("hanya pemilik group yang bisa menghapus group")
+		return apperror.Forbidden("only the group owner can delete the group")
 	}
 	if err := s.repo.DeleteGroup(userID, g.ID); err != nil {
 		if ae, ok := err.(*apperror.AppError); ok {
@@ -231,7 +231,7 @@ func (s *Service) AddMember(userID, groupID string, req domain.AddMemberRequest)
 	}
 	name := strings.TrimSpace(req.DisplayName)
 	if name == "" || len(name) > 80 {
-		return nil, apperror.BadRequest("nama peserta 1 sampai 80 karakter")
+		return nil, apperror.BadRequest("participant name must be between 1 and 80 characters")
 	}
 	linked, err := s.resolveUserID(req.LinkedUserID, req.Email)
 	if err != nil {
@@ -261,7 +261,7 @@ func (s *Service) DeleteMember(userID, groupID, memberID string) error {
 		return apperror.Internal("failed to get participant", err)
 	}
 	if participant == nil {
-		return apperror.NotFound("peserta tidak ditemukan")
+		return apperror.NotFound("participant not found")
 	}
 	sum, err := s.repo.GetSummary(g.ID)
 	if err != nil {
@@ -269,7 +269,7 @@ func (s *Service) DeleteMember(userID, groupID, memberID string) error {
 	}
 	for _, b := range sum.Balances {
 		if b.MemberID == memberID && b.Net != 0 {
-			return apperror.BadRequest("selesaikan sisa saldo dulu sebelum hapus peserta")
+			return apperror.BadRequest("settle the remaining balance before deleting the participant")
 		}
 	}
 	hasHistory, err := s.repo.HasParticipantHistory(g.ID, memberID)
@@ -277,7 +277,7 @@ func (s *Service) DeleteMember(userID, groupID, memberID string) error {
 		return apperror.Internal("failed to check participant history", err)
 	}
 	if hasHistory {
-		return apperror.BadRequest("peserta punya riwayat pengeluaran atau pelunasan, tidak bisa dihapus")
+		return apperror.BadRequest("this participant has expense or settlement history and cannot be deleted")
 	}
 	if err := s.repo.DeleteParticipant(g.ID, memberID); err != nil {
 		if ae, ok := err.(*apperror.AppError); ok {
@@ -302,7 +302,7 @@ func (s *Service) LinkMember(userID, groupID, memberID string, req domain.LinkMe
 		return nil, err
 	}
 	if linked == nil {
-		return nil, apperror.BadRequest("email atau linked_user_id wajib diisi")
+		return nil, apperror.BadRequest("email or linked_user_id is required")
 	}
 	participant, err := s.repo.LinkParticipant(g.ID, memberID, *linked)
 	if err != nil {
@@ -316,10 +316,10 @@ func (s *Service) LinkMember(userID, groupID, memberID string, req domain.LinkMe
 
 func computeSplits(totalAmount int64, splitType string, inputs []domain.SplitInput) ([]domain.Split, error) {
 	if len(inputs) == 0 {
-		return nil, apperror.BadRequest("splits tidak boleh kosong")
+		return nil, apperror.BadRequest("splits must not be empty")
 	}
 	if len(inputs) > 50 {
-		return nil, apperror.BadRequest("maksimal 50 splits per expense")
+		return nil, apperror.BadRequest("maximum 50 splits per expense")
 	}
 	switch splitType {
 	case domain.SplitEqual, "":
@@ -340,13 +340,13 @@ func computeSplits(totalAmount int64, splitType string, inputs []domain.SplitInp
 		out := make([]domain.Split, len(inputs))
 		for i, in := range inputs {
 			if in.ShareAmount < 0 {
-				return nil, apperror.BadRequest("share_amount tidak boleh negatif")
+				return nil, apperror.BadRequest("share_amount must not be negative")
 			}
 			sum += in.ShareAmount
 			out[i] = domain.Split{MemberID: in.MemberID, ShareAmount: in.ShareAmount}
 		}
 		if sum != totalAmount {
-			return nil, apperror.BadRequest("total splits harus sama dengan total expense")
+			return nil, apperror.BadRequest("total splits must equal the expense total")
 		}
 		return out, nil
 	case domain.SplitPercent:
@@ -355,7 +355,7 @@ func computeSplits(totalAmount int64, splitType string, inputs []domain.SplitInp
 		var allocated int64
 		for i, in := range inputs {
 			if in.Percent < 0 || in.Percent > 100 {
-				return nil, apperror.BadRequest("percent harus 0 sampai 100")
+				return nil, apperror.BadRequest("percent must be between 0 and 100")
 			}
 			sumPercent += in.Percent
 			amt := totalAmount * int64(in.Percent) / 100
@@ -367,11 +367,11 @@ func computeSplits(totalAmount int64, splitType string, inputs []domain.SplitInp
 			out[i] = domain.Split{MemberID: in.MemberID, ShareAmount: amt}
 		}
 		if sumPercent != 100 {
-			return nil, apperror.BadRequest("total percent harus 100")
+			return nil, apperror.BadRequest("total percent must be 100")
 		}
 		return out, nil
 	default:
-		return nil, apperror.BadRequest("split_type harus salah satu dari: equal, percent, nominal")
+		return nil, apperror.BadRequest("split_type must be one of: equal, percent, nominal")
 	}
 }
 
@@ -429,10 +429,10 @@ func (s *Service) CreateExpense(userID, groupID string, req domain.CreateExpense
 		return nil, err
 	}
 	if req.TotalAmount <= 0 {
-		return nil, apperror.BadRequest("total_amount harus lebih dari 0")
+		return nil, apperror.BadRequest("total_amount must be greater than 0")
 	}
 	if len(strings.TrimSpace(req.Note)) > 255 {
-		return nil, apperror.BadRequest("note maksimal 255 karakter")
+		return nil, apperror.BadRequest("note must be at most 255 characters")
 	}
 	occurredAt := req.OccurredAt
 	if occurredAt.IsZero() {
@@ -448,14 +448,14 @@ func (s *Service) CreateExpense(userID, groupID string, req domain.CreateExpense
 		valid[p.ID] = true
 	}
 	if !valid[payerID] {
-		return nil, apperror.BadRequest("payer tidak termasuk peserta group")
+		return nil, apperror.BadRequest("payer is not a group participant")
 	}
 	for _, sp := range req.Splits {
 		if _, err := validID(sp.MemberID, "member_id"); err != nil {
 			return nil, err
 		}
 		if !valid[sp.MemberID] {
-			return nil, apperror.BadRequest("member split tidak termasuk peserta group")
+			return nil, apperror.BadRequest("split member is not a group participant")
 		}
 	}
 
@@ -531,10 +531,10 @@ func (s *Service) DeleteExpense(userID, groupID, expenseID string) error {
 			return apperror.Internal("failed to get expense", err)
 		}
 		if expense == nil {
-			return apperror.NotFound("expense tidak ditemukan")
+			return apperror.NotFound("expense not found")
 		}
 		if expense.CreatedByUserID != userID {
-			return apperror.Forbidden("hanya pemilik group atau pencatat yang bisa menghapus expense")
+			return apperror.Forbidden("only the group owner or the recorder can delete this expense")
 		}
 	}
 	if err := s.repo.DeleteExpense(g.ID, expenseID); err != nil {
@@ -560,13 +560,13 @@ func (s *Service) CreateSettlement(userID, groupID string, req domain.CreateSett
 		return nil, err
 	}
 	if fromID == toID {
-		return nil, apperror.BadRequest("from_member_id dan to_member_id harus beda")
+		return nil, apperror.BadRequest("from_member_id and to_member_id must be different")
 	}
 	if req.Amount <= 0 {
-		return nil, apperror.BadRequest("amount harus lebih dari 0")
+		return nil, apperror.BadRequest("amount must be greater than 0")
 	}
 	if len(strings.TrimSpace(req.Note)) > 255 {
-		return nil, apperror.BadRequest("note maksimal 255 karakter")
+		return nil, apperror.BadRequest("note must be at most 255 characters")
 	}
 	for _, id := range []string{fromID, toID} {
 		p, err := s.repo.GetParticipant(g.ID, id)
@@ -574,7 +574,7 @@ func (s *Service) CreateSettlement(userID, groupID string, req domain.CreateSett
 			return nil, apperror.Internal("failed to get participant", err)
 		}
 		if p == nil {
-			return nil, apperror.BadRequest("member tidak termasuk peserta group")
+			return nil, apperror.BadRequest("member is not a group participant")
 		}
 	}
 	occurredAt := req.OccurredAt
@@ -616,7 +616,7 @@ func (s *Service) DeleteSettlement(userID, groupID, settlementID string) error {
 		return err
 	}
 	if !isOwner {
-		return apperror.Forbidden("hanya pemilik group yang bisa menghapus pelunasan")
+		return apperror.Forbidden("only the group owner can delete settlements")
 	}
 	settlementID, err = validID(settlementID, "settlement id")
 	if err != nil {
