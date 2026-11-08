@@ -6,6 +6,7 @@ import {
   PiggyBank,
   Tags,
   Settings,
+  Users,
 } from "lucide-react";
 
 export const sidebarData = [
@@ -41,6 +42,11 @@ export const sidebarData = [
         title: "Budgets",
         path: "/dashboard/budgets",
         icon: PiggyBank,
+      },
+      {
+        title: "Patungan",
+        path: "/dashboard/patungan",
+        icon: Users,
       },
     ],
   },

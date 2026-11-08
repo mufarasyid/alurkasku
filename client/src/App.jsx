@@ -9,6 +9,8 @@ import ProfilePage from "./pages/dashboard/ProfilePage";
 import CategoriesPage from "./pages/dashboard/CategoriesPage";
 import AccountsPage from "./pages/dashboard/AccountsPage";
 import BudgetsPage from "./pages/dashboard/BudgetsPage";
+import PatunganPage from "./pages/dashboard/PatunganPage";
+import PatunganDetailPage from "./pages/dashboard/PatunganDetailPage";
 
 const App = () => {
   return (
@@ -22,6 +24,8 @@ const App = () => {
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="accounts" element={<AccountsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />
+          <Route path="patungan" element={<PatunganPage />} />
+          <Route path="patungan/:id" element={<PatunganDetailPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

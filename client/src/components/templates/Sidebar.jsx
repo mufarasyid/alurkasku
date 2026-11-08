@@ -12,6 +12,7 @@ import {
   ChevronDown,
   TrendingUp,
   ChevronRight,
+  Users,
 } from "lucide-react";
 
 import sidebarData from "../../assets/data/sidebar-data";
@@ -31,6 +32,7 @@ const iconMap = {
   Recurring: Repeat,
   "Financial Goals": Target,
   Portfolio: TrendingUp,
+  Patungan: Users,
   Settings,
 };
 
