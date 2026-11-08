@@ -6,13 +6,13 @@ import (
 	"net/http"
 
 	"github.com/mufarasyid/alurkasku/server/internal/config"
+	accountRepo "github.com/mufarasyid/alurkasku/server/internal/modules/account/repository"
+	accountRoute "github.com/mufarasyid/alurkasku/server/internal/modules/account/route"
+	accountService "github.com/mufarasyid/alurkasku/server/internal/modules/account/service"
 	authDomain "github.com/mufarasyid/alurkasku/server/internal/modules/auth/domain"
 	authRepo "github.com/mufarasyid/alurkasku/server/internal/modules/auth/repository"
 	authRoute "github.com/mufarasyid/alurkasku/server/internal/modules/auth/route"
 	authService "github.com/mufarasyid/alurkasku/server/internal/modules/auth/service"
-	accountRepo "github.com/mufarasyid/alurkasku/server/internal/modules/account/repository"
-	accountRoute "github.com/mufarasyid/alurkasku/server/internal/modules/account/route"
-	accountService "github.com/mufarasyid/alurkasku/server/internal/modules/account/service"
 	budgetRepo "github.com/mufarasyid/alurkasku/server/internal/modules/budget/repository"
 	budgetRoute "github.com/mufarasyid/alurkasku/server/internal/modules/budget/route"
 	budgetService "github.com/mufarasyid/alurkasku/server/internal/modules/budget/service"
@@ -20,6 +20,12 @@ import (
 	catRepo "github.com/mufarasyid/alurkasku/server/internal/modules/category/repository"
 	catRoute "github.com/mufarasyid/alurkasku/server/internal/modules/category/route"
 	catService "github.com/mufarasyid/alurkasku/server/internal/modules/category/service"
+	patunganRepo "github.com/mufarasyid/alurkasku/server/internal/modules/patungan/repository"
+	patunganRoute "github.com/mufarasyid/alurkasku/server/internal/modules/patungan/route"
+	patunganService "github.com/mufarasyid/alurkasku/server/internal/modules/patungan/service"
+	subRepo "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/repository"
+	subRoute "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/route"
+	subService "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/service"
 	transactionRepo "github.com/mufarasyid/alurkasku/server/internal/modules/transaction/repository"
 	transactionRoute "github.com/mufarasyid/alurkasku/server/internal/modules/transaction/route"
 	transactionService "github.com/mufarasyid/alurkasku/server/internal/modules/transaction/service"
@@ -35,9 +41,6 @@ import (
 	"github.com/mufarasyid/alurkasku/server/internal/platform/security"
 	"github.com/mufarasyid/alurkasku/server/internal/router"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/middleware"
-	subRepo "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/repository"
-	subService "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/service"
-	subRoute "github.com/mufarasyid/alurkasku/server/internal/modules/subscription/route"
 )
 
 type App struct {
@@ -97,6 +100,9 @@ func NewApp(cfg *config.Config) (*App, error) {
 	transferRepository := transferRepo.NewPostgresRepository(postgres.DB)
 	transferSvc := transferService.New(transferRepository, accountRepository)
 
+	patunganRepository := patunganRepo.NewPostgresRepository(postgres.DB)
+	patunganSvc := patunganService.New(patunganRepository, userRepository, categoryRepository)
+
 	r := router.New()
 
 	logMiddleware := func(next http.Handler) http.Handler {
@@ -110,6 +116,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	budgetRoute.Setup(r, budgetSvc, logMiddleware, middleware.Auth(jwtMgr))
 	transactionRoute.Setup(r, transactionSvc, logMiddleware, middleware.Auth(jwtMgr))
 	transferRoute.Setup(r, transferSvc, logMiddleware, middleware.Auth(jwtMgr))
+	patunganRoute.Setup(r, patunganSvc, logMiddleware, middleware.Auth(jwtMgr))
 
 	subRepo := subRepo.NewPostgresRepository(postgres.DB)
 	subSvc := subService.New(subRepo, userRepository)
