@@ -1,4 +1,4 @@
-import { forwardRef, useState, useMemo, useEffect, useRef } from 'react'
+import { forwardRef, useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react'
 import { cn } from '../../../lib/utils.js'
 import {
@@ -52,6 +52,9 @@ const DataTable = forwardRef(
       columns,
       data = [],
       pageSize = 10,
+      page: controlledPage,
+      totalPages: controlledTotalPages,
+      onPageChange,
       searchPlaceholder = 'Search...',
       emptyMessage = 'No results found.',
       showActions = false,
@@ -68,7 +71,16 @@ const DataTable = forwardRef(
   ) => {
     const [sort, setSort] = useState(null)
     const [searches, setSearches] = useState({})
-    const [page, setPage] = useState(1)
+    const [internalPage, setInternalPage] = useState(1)
+    const isControlled = controlledPage !== undefined
+    const page = isControlled ? controlledPage : internalPage
+    const setPage = useCallback(
+      (next) => {
+        if (isControlled) onPageChange?.(next)
+        else setInternalPage(next)
+      },
+      [isControlled, onPageChange]
+    )
     const size = pageSize
 
     const selectedIds = useMemo(
@@ -130,16 +142,16 @@ const DataTable = forwardRef(
       })
     }, [filteredRows, sort, columns])
 
-    const totalPages = Math.max(1, Math.ceil(sortedRows.length / size))
-
-    useEffect(() => {
-      if (page > totalPages) setPage(totalPages)
-    }, [page, totalPages])
+    const computedTotalPages = Math.max(1, Math.ceil(sortedRows.length / size))
+    const totalPages = isControlled ? (controlledTotalPages ?? 1) : computedTotalPages
+    const clampedPage = Math.min(Math.max(page, 1), totalPages)
 
     const visibleRows = useMemo(() => {
-      const start = (page - 1) * size
+      // Server-driven mode: data already contains only the current page.
+      if (isControlled) return sortedRows
+      const start = (clampedPage - 1) * size
       return sortedRows.slice(start, start + size)
-    }, [sortedRows, page, size])
+    }, [sortedRows, clampedPage, size, isControlled])
 
     const toggleRow = (id) => {
       if (!onSelectedChange) return
@@ -306,7 +318,7 @@ const DataTable = forwardRef(
 
         <div className="mt-4 flex justify-end">
           <Pagination
-            page={page}
+            page={clampedPage}
             totalPages={totalPages}
             onPageChange={setPage}
             className="mx-0 w-auto"

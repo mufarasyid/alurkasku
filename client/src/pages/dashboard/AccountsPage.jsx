@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Landmark,
   Building2,
@@ -56,6 +56,7 @@ import {
   updateAccount,
   bulkDeleteAccounts,
 } from "../../services/accounts";
+import { useDebouncedValue } from "../../lib/use-debounced-value";
 
 const ICON_LIST = [
   { name: "Landmark", Icon: Landmark },
@@ -184,6 +185,12 @@ const AccountsPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [counts, setCounts] = useState({ all: 0, Cash: 0, Bank: 0, Wallet: 0 });
+  const [reloadToken, setReloadToken] = useState(0);
+  const hasLoadedRef = useRef(false);
   const [selected, setSelected] = useState(new Set());
   const [formDialog, setFormDialog] = useState(null);
   const [formName, setFormName] = useState("");
@@ -194,50 +201,73 @@ const AccountsPage = () => {
   const [iconQuery, setIconQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState(null);
   const [transferDialog, setTransferDialog] = useState(null);
+  // Full list for the transfer dialog selects (the table only holds one page).
+  const [transferAccounts, setTransferAccounts] = useState([]);
+  useEffect(() => {
+    let active = true;
+    getAccounts({ page_size: 100 })
+      .then((res) => {
+        if (active) setTransferAccounts(res.data ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [reloadToken]);
 
   useEffect(() => {
     let active = true;
-    getAccounts()
+    getAccounts({
+      page,
+      page_size: 10,
+      q: debouncedQuery || undefined,
+      type: tab === "all" ? undefined : tab,
+    })
       .then((res) => {
-        if (active) setAccounts(res.data ?? []);
+        if (!active) return;
+        setAccounts(res.data ?? []);
+        setTotalPages(res.meta?.total_pages ?? 1);
+        setLoadError("");
       })
       .catch((err) => {
         if (active) setLoadError(err.message || "Failed to load accounts.");
       })
       .finally(() => {
-        if (active) setIsLoading(false);
+        if (active && !hasLoadedRef.current) {
+          hasLoadedRef.current = true;
+          setIsLoading(false);
+        }
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [page, debouncedQuery, tab, reloadToken]);
 
-  const reloadAccounts = () => {
-    getAccounts()
-      .then((res) => {
-        setAccounts(res.data ?? []);
-        setLoadError("");
+  // Tab counts come from the server (page_size=1 requests the totals only).
+  useEffect(() => {
+    let active = true;
+    Promise.all(
+      TABS.map(async ({ key }) => {
+        const res = await getAccounts({
+          page_size: 1,
+          type: key === "all" ? undefined : key,
+        });
+        return [key, res.meta?.total_items ?? 0];
+      }),
+    )
+      .then((entries) => {
+        if (active) setCounts(Object.fromEntries(entries));
       })
-      .catch((err) => setLoadError(err.message || "Failed to load accounts."));
-  };
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [reloadToken]);
 
-  const counts = {
-    all: accounts.length,
-    Cash: accounts.filter((account) => account.type === "Cash").length,
-    Bank: accounts.filter((account) => account.type === "Bank").length,
-    Wallet: accounts.filter((account) => account.type === "Wallet").length,
-  };
+  const reloadAccounts = () => setReloadToken((token) => token + 1);
 
-  const visibleAccounts = accounts.filter((account) => {
-    if (tab !== "all" && account.type !== tab) return false;
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      account.name.toLowerCase().includes(q) ||
-      account.type.toLowerCase().includes(q) ||
-      (account.detail ?? "").toLowerCase().includes(q)
-    );
-  });
+  // Filtering and paging are done on the server; accounts is the current page.
+  const visibleAccounts = accounts;
 
   const filteredIcons = ICON_LIST.filter(({ name }) =>
     name.toLowerCase().includes(iconQuery.trim().toLowerCase()),
@@ -288,14 +318,12 @@ const AccountsPage = () => {
     setFormError("");
     try {
       if (formDialog?.mode === "edit") {
-        const res = await updateAccount(formDialog.row.id, payload);
-        setAccounts((prev) =>
-          prev.map((account) => (account.id === res.data.id ? res.data : account)),
-        );
+        await updateAccount(formDialog.row.id, payload);
       } else {
-        const res = await createAccount(payload);
-        setAccounts((prev) => [res.data, ...prev]);
+        await createAccount(payload);
       }
+      setPage(1);
+      reloadAccounts();
       closeFormDialog();
     } catch (err) {
       setFormError(err.message || "Failed to save account.");
@@ -311,9 +339,9 @@ const AccountsPage = () => {
     setIsDeleting(true);
     try {
       await bulkDeleteAccounts(ids);
-      setAccounts((prev) => prev.filter((account) => !idSet.has(account.id)));
       setSelected((prev) => new Set([...prev].filter((id) => !idSet.has(id))));
       setPendingDelete(null);
+      reloadAccounts();
     } catch (err) {
       setLoadError(err.message || "Failed to delete accounts.");
       setPendingDelete(null);
@@ -322,9 +350,28 @@ const AccountsPage = () => {
     }
   };
 
-  const handleExport = () => {
+  const fetchAllAccounts = async () => {
+    const items = [];
+    let page = 1;
+    for (;;) {
+      const res = await getAccounts({
+        page,
+        page_size: 100,
+        q: debouncedQuery || undefined,
+        type: tab === "all" ? undefined : tab,
+      });
+      items.push(...(res.data ?? []));
+      const pages = res.meta?.total_pages ?? 1;
+      if (page >= pages) break;
+      page += 1;
+    }
+    return items;
+  };
+
+  const handleExport = async () => {
     const header = ["Name", "Type", "Detail", "Balance (IDR)"];
-    const lines = visibleAccounts.map((account) =>
+    const allAccounts = await fetchAllAccounts().catch(() => visibleAccounts);
+    const lines = allAccounts.map((account) =>
       [
         csvEscape(account.name),
         csvEscape(account.type),
@@ -406,7 +453,10 @@ const AccountsPage = () => {
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setTab(key)}
+                onClick={() => {
+                  setTab(key);
+                  setPage(1);
+                }}
                 className={cn(
                   "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   isActive
@@ -441,7 +491,10 @@ const AccountsPage = () => {
               />
               <Input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Filter accounts"
                 aria-label="Filter accounts"
                 className="h-9 rounded-full pl-9"
@@ -480,6 +533,9 @@ const AccountsPage = () => {
             columns={columns}
             data={visibleAccounts}
             pageSize={10}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
             emptyMessage={
               query || tab !== "all"
                 ? "No accounts match this filter."
@@ -762,7 +818,7 @@ const AccountsPage = () => {
           mode={transferDialog}
           open
           onOpenChange={(open) => !open && setTransferDialog(null)}
-          accounts={accounts}
+          accounts={transferAccounts}
           onSuccess={reloadAccounts}
         />
       )}

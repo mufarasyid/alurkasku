@@ -38,7 +38,7 @@ const PatunganPage = () => {
   const [pendingDelete, setPendingDelete] = useState(null);
 
   const fetchGroups = () => {
-    getPatunganGroups()
+    getPatunganGroups({ page_size: 100 })
       .then((res) => {
         setGroups(res.data ?? []);
         setLoadError("");

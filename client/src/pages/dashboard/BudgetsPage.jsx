@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Utensils,
   Car,
@@ -94,6 +94,7 @@ import {
   bulkDeleteBudgets,
 } from "../../services/budgets";
 import { getCategories } from "../../services/categories";
+import { useDebouncedValue } from "../../lib/use-debounced-value";
 
 const ICON_LIST = [
   { name: "Utensils", Icon: Utensils },
@@ -330,6 +331,12 @@ const BudgetsPage = () => {
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [counts, setCounts] = useState({ all: 0, Weekly: 0, Monthly: 0, Yearly: 0 });
+  const [reloadToken, setReloadToken] = useState(0);
+  const hasLoadedRef = useRef(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [selected, setSelected] = useState(new Set());
   const [formDialog, setFormDialog] = useState(null);
@@ -344,17 +351,28 @@ const BudgetsPage = () => {
 
   useEffect(() => {
     let active = true;
-    getBudgets()
+    getBudgets({
+      page,
+      page_size: 10,
+      q: debouncedQuery || undefined,
+      period: tab === "all" ? undefined : tab,
+    })
       .then((res) => {
-        if (active) setBudgets(res.data ?? []);
+        if (!active) return;
+        setBudgets(res.data ?? []);
+        setTotalPages(res.meta?.total_pages ?? 1);
+        setLoadError("");
       })
       .catch((err) => {
         if (active) setLoadError(err.message || "Failed to load budgets.");
       })
       .finally(() => {
-        if (active) setIsLoading(false);
+        if (active && !hasLoadedRef.current) {
+          hasLoadedRef.current = true;
+          setIsLoading(false);
+        }
       });
-    getCategories({ type: "Expense" })
+    getCategories({ type: "Expense", page_size: 100 })
       .then((res) => {
         if (active) setExpenseCategories(res.data ?? []);
       })
@@ -364,26 +382,36 @@ const BudgetsPage = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [page, debouncedQuery, tab, reloadToken]);
 
-  const counts = {
-    all: budgets.length,
-    Weekly: budgets.filter((budget) => budget.period === "Weekly").length,
-    Monthly: budgets.filter((budget) => budget.period === "Monthly").length,
-    Yearly: budgets.filter((budget) => budget.period === "Yearly").length,
-  };
+  useEffect(() => {
+    let active = true;
+    Promise.all(
+      ["all", "Weekly", "Monthly", "Yearly"].map(async (key) => {
+        const res = await getBudgets({
+          page_size: 1,
+          period: key === "all" ? undefined : key,
+        });
+        return [key, res.meta?.total_items ?? 0];
+      }),
+    )
+      .then((entries) => {
+        if (active) setCounts(Object.fromEntries(entries));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [reloadToken]);
 
+  const reloadBudgets = () => setReloadToken((token) => token + 1);
+
+  // Paging, period and search are done on the server; budgets is the current
+  // page. Status is derived from spent/limit, so it stays a client filter.
   const visibleBudgets = budgets.filter((budget) => {
-    if (tab !== "all" && budget.period !== tab) return false;
     if (statusFilter !== "all" && getStatus(budget) !== statusFilter)
       return false;
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      budget.name.toLowerCase().includes(q) ||
-      (budget.category ?? "").toLowerCase().includes(q) ||
-      budget.period.toLowerCase().includes(q)
-    );
+    return true;
   });
 
   const filteredIcons = ICON_LIST.filter(({ name }) =>
@@ -440,16 +468,12 @@ const BudgetsPage = () => {
     setFormError("");
     try {
       if (formDialog?.mode === "edit") {
-        const res = await updateBudget(formDialog.row.id, payload);
-        setBudgets((prev) =>
-          prev.map((budget) =>
-            budget.id === res.data.id ? res.data : budget,
-          ),
-        );
+        await updateBudget(formDialog.row.id, payload);
       } else {
-        const res = await createBudget(payload);
-        setBudgets((prev) => [res.data, ...prev]);
+        await createBudget(payload);
       }
+      setPage(1);
+      reloadBudgets();
       closeFormDialog();
     } catch (err) {
       setFormError(err.message || "Failed to save budget.");
@@ -465,9 +489,9 @@ const BudgetsPage = () => {
     setIsDeleting(true);
     try {
       await bulkDeleteBudgets(ids);
-      setBudgets((prev) => prev.filter((budget) => !idSet.has(budget.id)));
       setSelected((prev) => new Set([...prev].filter((id) => !idSet.has(id))));
       setPendingDelete(null);
+      reloadBudgets();
     } catch (err) {
       setLoadError(err.message || "Failed to delete budgets.");
       setPendingDelete(null);
@@ -476,7 +500,25 @@ const BudgetsPage = () => {
     }
   };
 
-  const handleExport = () => {
+  const fetchAllBudgets = async () => {
+    const items = [];
+    let page = 1;
+    for (;;) {
+      const res = await getBudgets({
+        page,
+        page_size: 100,
+        q: debouncedQuery || undefined,
+        period: tab === "all" ? undefined : tab,
+      });
+      items.push(...(res.data ?? []));
+      const pages = res.meta?.total_pages ?? 1;
+      if (page >= pages) break;
+      page += 1;
+    }
+    return items;
+  };
+
+  const handleExport = async () => {
     const header = [
       "Name",
       "Category",
@@ -485,7 +527,11 @@ const BudgetsPage = () => {
       "Spent (IDR)",
       "Status",
     ];
-    const lines = visibleBudgets.map((budget) =>
+    const allBudgets = (await fetchAllBudgets().catch(() => visibleBudgets)).filter(
+      (budget) =>
+        statusFilter === "all" || getStatus(budget) === statusFilter,
+    );
+    const lines = allBudgets.map((budget) =>
       [
         csvEscape(budget.name),
         csvEscape(budget.category),
@@ -561,7 +607,10 @@ const BudgetsPage = () => {
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setTab(key)}
+                onClick={() => {
+                  setTab(key);
+                  setPage(1);
+                }}
                 className={cn(
                   "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   isActive
@@ -596,7 +645,10 @@ const BudgetsPage = () => {
               />
               <Input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Filter budgets"
                 aria-label="Filter budgets"
                 className="h-9 rounded-full pl-9"
@@ -651,6 +703,9 @@ const BudgetsPage = () => {
             columns={columns}
             data={visibleBudgets}
             pageSize={10}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
             emptyMessage={
               query || tab !== "all" || statusFilter !== "all"
                 ? "No budgets match this filter."

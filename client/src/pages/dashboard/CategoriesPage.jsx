@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Briefcase,
   Laptop,
@@ -99,6 +99,7 @@ import {
   updateCategory,
   bulkDeleteCategories,
 } from "../../services/categories";
+import { useDebouncedValue } from "../../lib/use-debounced-value";
 
 const ICON_LIST = [
   { name: "Briefcase", Icon: Briefcase },
@@ -239,6 +240,12 @@ const CategoriesPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [tab, setTab] = useState("all");
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [counts, setCounts] = useState({ all: 0, Income: 0, Expense: 0 });
+  const [reloadToken, setReloadToken] = useState(0);
+  const hasLoadedRef = useRef(false);
   const [selected, setSelected] = useState(new Set());
   const [formDialog, setFormDialog] = useState(null);
   const [formName, setFormName] = useState("");
@@ -249,37 +256,57 @@ const CategoriesPage = () => {
 
   useEffect(() => {
     let active = true;
-    getCategories()
+    getCategories({
+      page,
+      page_size: 10,
+      q: debouncedQuery || undefined,
+      type: tab === "all" ? undefined : tab,
+    })
       .then((res) => {
-        if (active) setCategories(res.data ?? []);
+        if (!active) return;
+        setCategories(res.data ?? []);
+        setTotalPages(res.meta?.total_pages ?? 1);
+        setLoadError("");
       })
       .catch((err) => {
         if (active) setLoadError(err.message || "Failed to load categories.");
       })
       .finally(() => {
-        if (active) setIsLoading(false);
+        if (active && !hasLoadedRef.current) {
+          hasLoadedRef.current = true;
+          setIsLoading(false);
+        }
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [page, debouncedQuery, tab, reloadToken]);
 
-  const counts = {
-    all: categories.length,
-    Income: categories.filter((category) => category.type === "Income").length,
-    Expense: categories.filter((category) => category.type === "Expense")
-      .length,
-  };
+  // Tab counts come from the server (page_size=1 requests the totals only).
+  useEffect(() => {
+    let active = true;
+    Promise.all(
+      TABS.map(async ({ key }) => {
+        const res = await getCategories({
+          page_size: 1,
+          type: key === "all" ? undefined : key,
+        });
+        return [key, res.meta?.total_items ?? 0];
+      }),
+    )
+      .then((entries) => {
+        if (active) setCounts(Object.fromEntries(entries));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [reloadToken]);
 
-  const visibleCategories = categories.filter((category) => {
-    if (tab !== "all" && category.type !== tab) return false;
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      category.name.toLowerCase().includes(q) ||
-      category.type.toLowerCase().includes(q)
-    );
-  });
+  const reloadCategories = () => setReloadToken((token) => token + 1);
+
+  // Filtering and paging are done on the server; categories is the current page.
+  const visibleCategories = categories;
 
   const filteredIcons = ICON_LIST.filter(({ name }) =>
     name.toLowerCase().includes(iconQuery.trim().toLowerCase()),
@@ -318,16 +345,12 @@ const CategoriesPage = () => {
     setFormError("");
     try {
       if (formDialog?.mode === "edit") {
-        const res = await updateCategory(formDialog.row.id, payload);
-        setCategories((prev) =>
-          prev.map((category) =>
-            category.id === res.data.id ? res.data : category,
-          ),
-        );
+        await updateCategory(formDialog.row.id, payload);
       } else {
-        const res = await createCategory(payload);
-        setCategories((prev) => [res.data, ...prev]);
+        await createCategory(payload);
       }
+      setPage(1);
+      reloadCategories();
       closeFormDialog();
     } catch (err) {
       setFormError(err.message || "Failed to save category.");
@@ -343,11 +366,9 @@ const CategoriesPage = () => {
     setIsDeleting(true);
     try {
       await bulkDeleteCategories(ids);
-      setCategories((prev) =>
-        prev.filter((category) => !idSet.has(category.id)),
-      );
       setSelected((prev) => new Set([...prev].filter((id) => !idSet.has(id))));
       setPendingDelete(null);
+      reloadCategories();
     } catch (err) {
       setLoadError(err.message || "Failed to delete categories.");
       setPendingDelete(null);
@@ -356,9 +377,30 @@ const CategoriesPage = () => {
     }
   };
 
-  const handleExport = () => {
+  const fetchAllCategories = async () => {
+    const items = [];
+    let page = 1;
+    for (;;) {
+      const res = await getCategories({
+        page,
+        page_size: 100,
+        q: debouncedQuery || undefined,
+        type: tab === "all" ? undefined : tab,
+      });
+      items.push(...(res.data ?? []));
+      const pages = res.meta?.total_pages ?? 1;
+      if (page >= pages) break;
+      page += 1;
+    }
+    return items;
+  };
+
+  const handleExport = async () => {
     const header = ["Name", "Type"];
-    const lines = visibleCategories.map((category) =>
+    const allCategories = await fetchAllCategories().catch(
+      () => visibleCategories,
+    );
+    const lines = allCategories.map((category) =>
       [csvEscape(category.name), csvEscape(category.type)].join(","),
     );
     const csv = [header.join(","), ...lines].join("\n");
@@ -429,7 +471,10 @@ const CategoriesPage = () => {
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setTab(key)}
+                onClick={() => {
+                  setTab(key);
+                  setPage(1);
+                }}
                 className={cn(
                   "flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   isActive
@@ -464,7 +509,10 @@ const CategoriesPage = () => {
               />
               <Input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Filter categories"
                 aria-label="Filter categories"
                 className="h-9 rounded-full pl-9"
@@ -499,6 +547,9 @@ const CategoriesPage = () => {
             columns={columns}
             data={visibleCategories}
             pageSize={10}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
             emptyMessage={
               query || tab !== "all"
                 ? "No categories match this filter."

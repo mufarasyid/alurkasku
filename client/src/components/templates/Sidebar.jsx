@@ -11,8 +11,8 @@ import {
   Settings,
   ChevronDown,
   TrendingUp,
-  ChevronRight,
   Users,
+  Lock,
 } from "lucide-react";
 
 import sidebarData from "../../assets/data/sidebar-data";
@@ -116,6 +116,45 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                     location.pathname.startsWith(`${item.path}/`));
 
                 const isExpanded = expandedMenus[item.title] ?? false;
+
+                if (item.locked) {
+                  return (
+                    <span
+                      key={item.path}
+                      role="link"
+                      aria-disabled="true"
+                      title={
+                        collapsed
+                          ? `${item.title} (locked)`
+                          : "Locked — still under QC"
+                      }
+                      aria-label={`${item.title} (locked)`}
+                      className={`flex cursor-not-allowed items-center gap-3 rounded-xl px-2 py-2 text-sm font-medium opacity-50 ${
+                        collapsed ? "justify-center" : ""
+                      }`}
+                    >
+                      <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 text-white/50">
+                        <Icon size={19} strokeWidth={1.8} />
+                        <span className="absolute -bottom-1 -right-1 rounded-full bg-primary p-0.5 text-white/70">
+                          <Lock size={10} strokeWidth={2} />
+                        </span>
+                      </span>
+
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 whitespace-nowrap">
+                            {item.title}
+                          </span>
+                          <Lock
+                            size={14}
+                            className="shrink-0 text-white/40"
+                            aria-hidden="true"
+                          />
+                        </>
+                      )}
+                    </span>
+                  );
+                }
 
                 if (hasChildren) {
                   const parentActive = isChildActive || isActive;
@@ -260,6 +299,45 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                   );
                 }
 
+                if (item.locked) {
+                  return (
+                    <span
+                      key={item.path}
+                      role="link"
+                      aria-disabled="true"
+                      title={
+                        collapsed
+                          ? `${item.title} (locked)`
+                          : "Locked — still under QC"
+                      }
+                      aria-label={`${item.title} (locked)`}
+                      className={`flex cursor-not-allowed items-center gap-3 rounded-xl px-2 py-2 text-sm font-medium opacity-50 ${
+                        collapsed ? "justify-center" : ""
+                      }`}
+                    >
+                      <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 text-white/50">
+                        <Icon size={19} strokeWidth={1.8} />
+                        <span className="absolute -bottom-1 -right-1 rounded-full bg-primary p-0.5 text-white/70">
+                          <Lock size={10} strokeWidth={2} />
+                        </span>
+                      </span>
+
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 whitespace-nowrap">
+                            {item.title}
+                          </span>
+                          <Lock
+                            size={14}
+                            className="shrink-0 text-white/40"
+                            aria-hidden="true"
+                          />
+                        </>
+                      )}
+                    </span>
+                  );
+                }
+
                 return (
                   <NavLink
                     key={item.path}
@@ -304,71 +382,6 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
           </div>
         ))}
       </nav>
-
-      {/* Footer - Logged In User */}
-      <div
-        className={`shrink-0 border-t border-white/10 ${
-          collapsed ? "p-2" : "p-4"
-        }`}
-      >
-        {(() => {
-          const user = JSON.parse(localStorage.getItem("user") || "{}");
-
-          const name = user.name || user.fullName || "Jhon Doe";
-          const email = user.email || "jhondoe@example.com";
-          const initials = name
-            .split(" ")
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((word) => word[0])
-            .join("")
-            .toUpperCase();
-
-          return (
-            <div
-              className={`flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3 transition-colors hover:bg-white/10 ${
-                collapsed ? "justify-center" : ""
-              }`}
-            >
-              {/* Avatar */}
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-cyan-400 text-sm font-bold text-slate-950"
-                title={collapsed ? name : undefined}
-              >
-                {user.avatar ? (
-                  <img
-                    src={user.avatar}
-                    alt={name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  initials
-                )}
-              </div>
-
-              {!collapsed && (
-                <>
-                  {/* User Information */}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {name}
-                    </p>
-                    <p className="truncate text-xs text-white/50">{email}</p>
-                  </div>
-
-                  {/* Profile Menu */}
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/50 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    <ChevronRight size={17} strokeWidth={1.8} />
-                  </button>
-                </>
-              )}
-            </div>
-          );
-        })()}
-      </div>
     </div>
   );
 };

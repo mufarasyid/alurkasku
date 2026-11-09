@@ -1,6 +1,6 @@
 import api from "../lib/api";
 
-export const getPatunganGroups = () => api.get("/patungan/groups");
+export const getPatunganGroups = (params) => api.get("/patungan/groups", { params });
 
 export const createPatunganGroup = (payload) => api.post("/patungan/groups", payload);
 
@@ -20,13 +20,13 @@ export const linkPatunganMember = (groupId, memberId, payload) => api.patch(`/pa
 
 export const getPatunganSummary = (groupId) => api.get(`/patungan/groups/${groupId}/summary`);
 
-export const getPatunganExpenses = (groupId) => api.get(`/patungan/groups/${groupId}/expenses`);
+export const getPatunganExpenses = (groupId, params) => api.get(`/patungan/groups/${groupId}/expenses`, { params });
 
 export const createPatunganExpense = (groupId, payload) => api.post(`/patungan/groups/${groupId}/expenses`, payload);
 
 export const deletePatunganExpense = (groupId, expenseId) => api.delete(`/patungan/groups/${groupId}/expenses/${expenseId}`);
 
-export const getPatunganSettlements = (groupId) => api.get(`/patungan/groups/${groupId}/settlements`);
+export const getPatunganSettlements = (groupId, params) => api.get(`/patungan/groups/${groupId}/settlements`, { params });
 
 export const createPatunganSettlement = (groupId, payload) => api.post(`/patungan/groups/${groupId}/settlements`, payload);
 

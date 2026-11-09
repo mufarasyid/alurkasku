@@ -8,6 +8,7 @@ import {
   DropdownContent,
   DropdownItem,
 } from "../ui/dropdown";
+import { DataTable } from "../ui/table/data-table";
 import CardDashboard from "../templates/CardDashboard";
 import CardBody from "./parts/CardBody";
 import { Skeleton } from "../ui/skeleton";
@@ -29,7 +30,97 @@ const TYPE_FILTERS = [
   { key: "Expense", label: "Expenses only" },
 ];
 
-const ActivityTransactionCard = ({ items = [], isLoading, className, onRefresh }) => {
+const TypePill = ({ value }) => (
+  <span
+    className={cn(
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider",
+      value === "Income"
+        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+        : "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    )}
+  >
+    <span
+      className={cn(
+        "size-1.5 rounded-full",
+        value === "Income" ? "bg-emerald-500" : "bg-amber-500",
+      )}
+    />
+    {value}
+  </span>
+);
+
+const columns = [
+  {
+    key: "transaction",
+    header: "Transaction",
+    accessor: (row) => row.note || row.category || "Transaction",
+    sortable: true,
+    render: (_value, row) => {
+      const Icon = resolveIcon(
+        row.category_icon,
+        row.type === "Income" ? ArrowDownLeft : ArrowUpRight,
+      );
+      return (
+        <span className="flex items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Icon className="size-4" strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">
+              {row.note || row.category || "Transaction"}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {row.category || "No category"}
+            </span>
+          </span>
+        </span>
+      );
+    },
+  },
+  { key: "account", header: "Account", sortable: true },
+  {
+    key: "occurred_at",
+    header: "Date",
+    sortable: true,
+    sortFn: (a, b) => new Date(a ?? 0) - new Date(b ?? 0),
+    render: (value) => formatShortDate(value),
+  },
+  {
+    key: "type",
+    header: "Type",
+    sortable: true,
+    render: (value) => <TypePill value={value} />,
+  },
+  {
+    key: "amount",
+    header: "Amount",
+    align: "right",
+    sortable: true,
+    render: (value, row) => {
+      const isIncome = row.type === "Income";
+      return (
+        <span
+          className={cn(
+            "font-medium tabular-nums",
+            isIncome
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-foreground",
+          )}
+        >
+          {isIncome ? "+" : "−"}
+          {formatIDR(value)}
+        </span>
+      );
+    },
+  },
+];
+
+const ActivityTransactionCard = ({
+  items = [],
+  isLoading,
+  className,
+  onRefresh,
+}) => {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
 
@@ -47,7 +138,9 @@ const ActivityTransactionCard = ({ items = [], isLoading, className, onRefresh }
     });
   }, [items, query, typeFilter]);
 
-  const activeFilterLabel = TYPE_FILTERS.find(({ key }) => key === typeFilter)?.label;
+  const activeFilterLabel = TYPE_FILTERS.find(
+    ({ key }) => key === typeFilter,
+  )?.label;
 
   return (
     <CardDashboard
@@ -134,57 +227,17 @@ const ActivityTransactionCard = ({ items = [], isLoading, className, onRefresh }
               </div>
             ))}
           </div>
-        ) : visibleItems.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 py-10 text-center">
-            <p className="text-sm font-medium text-muted-foreground">
-              {query || typeFilter !== "all"
-                ? "No transactions match this filter."
-                : "No transactions yet."}
-            </p>
-            {!query && typeFilter === "all" && (
-              <p className="text-xs text-muted-foreground">
-                Add your first transaction to see activity here.
-              </p>
-            )}
-          </div>
         ) : (
-          <ul className="flex flex-col divide-y divide-border overflow-y-auto">
-            {visibleItems.map((item) => {
-              const Icon = resolveIcon(
-                item.category_icon,
-                item.type === "Income" ? ArrowDownLeft : ArrowUpRight,
-              );
-              const isIncome = item.type === "Income";
-              return (
-                <li key={item.id} className="flex items-center gap-3 py-2.5">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                    <Icon className="size-4" strokeWidth={1.8} aria-hidden="true" />
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-medium">
-                      {item.note || item.category || "Transaction"}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {item.account}
-                      {item.category ? ` · ${item.category}` : ""}
-                      {item.occurred_at ? ` · ${formatShortDate(item.occurred_at)}` : ""}
-                    </span>
-                  </span>
-                  <span
-                    className={cn(
-                      "shrink-0 text-sm font-medium tabular-nums",
-                      isIncome
-                        ? "text-emerald-700 dark:text-emerald-400"
-                        : "text-foreground",
-                    )}
-                  >
-                    {isIncome ? "+" : "−"}
-                    {formatIDR(item.amount)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <DataTable
+            columns={columns}
+            data={visibleItems}
+            pageSize={10}
+            emptyMessage={
+              query || typeFilter !== "all"
+                ? "No transactions match this filter."
+                : "No transactions yet. Add your first transaction to see activity here."
+            }
+          />
         )}
       </CardBody>
     </CardDashboard>

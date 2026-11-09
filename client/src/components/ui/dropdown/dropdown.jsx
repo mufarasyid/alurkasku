@@ -45,7 +45,7 @@ function Dropdown({ children }) {
   }, [open, updateAnchor])
 
   return (
-    <DropdownContext.Provider value={{ open, setOpen, rootRef, contentRef, anchorRect }}>
+    <DropdownContext.Provider value={{ open, setOpen, rootRef, contentRef, anchorRect, updateAnchor }}>
       <div ref={rootRef} className="relative inline-block">
         {children}
       </div>
@@ -55,11 +55,16 @@ function Dropdown({ children }) {
 Dropdown.displayName = 'Dropdown'
 
 function DropdownTrigger({ asChild, children, ...props }) {
-  const { open, setOpen } = useContext(DropdownContext)
+  const { open, setOpen, updateAnchor } = useContext(DropdownContext)
   const Comp = asChild ? 'span' : 'button'
   return (
     <Comp
-      onClick={() => setOpen(!open)}
+      onClick={() => {
+        // Measure synchronously before opening so the menu's first paint
+        // already sits at the trigger instead of starting at top:0.
+        if (!open) updateAnchor()
+        setOpen(!open)
+      }}
       aria-expanded={open}
       aria-haspopup="true"
       {...props}
@@ -94,6 +99,9 @@ const DropdownContent = forwardRef(({ className, align = 'start', sideOffset = 8
   }, [open, anchorRect, sideOffset, hasCustomPosition, contentRef])
 
   if (!open) return null
+  // Never render before the anchor is known — a frame at top:0 is what made
+  // the menu look like it slid down from the top of the page.
+  if (!hasCustomPosition && !anchorRect) return null
 
   const mergedRef = (node) => {
     if (contentRef) contentRef.current = node
@@ -101,19 +109,29 @@ const DropdownContent = forwardRef(({ className, align = 'start', sideOffset = 8
     else if (ref) ref.current = node
   }
 
+  const originX = align === 'end' ? 'right' : 'left'
+  const originY = dropUp ? 'bottom' : 'top'
+
   const menu = (
     <div
       ref={mergedRef}
       className={cn(
         'fixed z-[100] min-w-32 overflow-hidden rounded-md border border-border bg-background p-1 shadow-md',
-        'animate-in fade-in-0 zoom-in-95 duration-150',
+        'dropdown-menu',
         className
       )}
-      onClick={() => setOpen(false)}
+      onClick={(e) => {
+        // Only close when an actual choice is made. Clicks on static areas
+        // (labels, info blocks) must not dismiss the menu — it closes via
+        // menu items, links, profile/logout actions, Escape, or outside clicks.
+        if (e.target.closest?.('[role="menuitem"], a, button')) setOpen(false)
+      }}
       role="menu"
       {...props}
       style={{
-        ...(!hasCustomPosition && !anchorRect ? { top: 0, left: 0 } : {}),
+        ...(!hasCustomPosition
+          ? { transformOrigin: `${originY} ${originX}` }
+          : {}),
         ...(!hasCustomPosition && anchorRect
           ? dropUp
             ? { bottom: window.innerHeight - anchorRect.top + sideOffset }

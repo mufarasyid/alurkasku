@@ -92,8 +92,8 @@ const PatunganDetailPage = () => {
     Promise.all([
       getPatunganGroup(id),
       getPatunganSummary(id),
-      getPatunganExpenses(id),
-      getPatunganSettlements(id),
+      getPatunganExpenses(id, { page_size: 100 }),
+      getPatunganSettlements(id, { page_size: 100 }),
     ])
       .then(([gRes, sRes, eRes, stRes]) => {
         setGroup(gRes.data?.group ?? null);

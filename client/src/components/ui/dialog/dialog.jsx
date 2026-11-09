@@ -76,7 +76,7 @@ const DialogContent = forwardRef(({ className, children, ...props }, ref) => {
         aria-modal="true"
         className={cn(
           'relative z-50 w-full max-w-lg rounded-xl border border-border bg-background shadow-lg p-6 mx-4',
-          'animate-in fade-in-0 zoom-in-95 duration-200',
+          'dialog-panel',
           className
         )}
         {...props}

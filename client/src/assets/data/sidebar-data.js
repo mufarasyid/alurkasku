@@ -47,6 +47,7 @@ export const sidebarData = [
         title: "Patungan",
         path: "/dashboard/patungan",
         icon: Users,
+        locked: true,
       },
     ],
   },
@@ -57,6 +58,7 @@ export const sidebarData = [
         title: "Portfolio",
         path: "/investments",
         icon: ChartNoAxesCombined,
+        locked: true,
         children: [
           {
             title: "Overview",

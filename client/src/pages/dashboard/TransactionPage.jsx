@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Calendar, Download, Plus, X } from "lucide-react";
 
 import { cn } from "../../lib/utils";
+import { getPreferences } from "../../lib/preferences";
 import { Button } from "../../components/ui/button";
 import { Input, RupiahInput } from "../../components/ui/input";
 import { DatePicker } from "../../components/ui/datepicker";
@@ -75,7 +76,7 @@ const todayString = () => {
 };
 
 const TransactionPage = () => {
-  const [period, setPeriod] = useState("this-month");
+  const [period, setPeriod] = useState(() => getPreferences().defaultPeriod);
   const [loadedPeriod, setLoadedPeriod] = useState(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [overview, setOverview] = useState(null);
@@ -103,9 +104,9 @@ const TransactionPage = () => {
     Promise.allSettled([
       getTransactionOverview({ period }),
       getTransactionBreakdown({ period }),
-      getTransactions({ period, limit: 50 }),
+      getTransactions({ period, page_size: 100 }),
       getMySubscriptions(),
-      getAccounts(),
+      getAccounts({ page_size: 100 }),
     ]).then(([ov, bd, act, sub, acc]) => {
       if (!active) return;
       if (ov.status === "fulfilled") setOverview(ov.value.data ?? null);
@@ -130,7 +131,7 @@ const TransactionPage = () => {
 
   useEffect(() => {
     let active = true;
-    getCategories({ type: formType })
+    getCategories({ type: formType, page_size: 100 })
       .then((res) => {
         if (active) setFormCategories(res.data ?? []);
       })

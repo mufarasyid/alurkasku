@@ -38,3 +38,15 @@ export const saveSession = ({ user, token }) => {
 export const clearSession = () => {
   Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
 };
+
+export const USER_UPDATED_EVENT = "alurkasku:user-updated";
+
+export const updateStoredUser = (patch) => {
+  const user = getStoredUser();
+  if (!user) return;
+  localStorage.setItem(
+    STORAGE_KEYS.user,
+    JSON.stringify({ ...user, ...patch }),
+  );
+  window.dispatchEvent(new Event(USER_UPDATED_EVENT));
+};
