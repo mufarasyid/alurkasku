@@ -52,20 +52,20 @@ func (s *Service) Withdraw(userID string, req domain.CreateTransferRequest) (*do
 	return s.execute(userID, domain.KindWithdrawal, from, to, req)
 }
 
-func (s *Service) ListTransfers(userID string, limit int) ([]domain.Transfer, error) {
-	transfers, err := s.repo.ListByUser(userID, domain.KindTransfer, limit)
+func (s *Service) ListTransfers(userID string, limit, offset int) ([]domain.Transfer, int64, error) {
+	transfers, total, err := s.repo.ListByUser(userID, domain.KindTransfer, limit, offset)
 	if err != nil {
-		return nil, apperror.Internal("failed to list transfers", err)
+		return nil, 0, apperror.Internal("failed to list transfers", err)
 	}
-	return transfers, nil
+	return transfers, total, nil
 }
 
-func (s *Service) ListWithdrawals(userID string, limit int) ([]domain.Transfer, error) {
-	withdrawals, err := s.repo.ListByUser(userID, domain.KindWithdrawal, limit)
+func (s *Service) ListWithdrawals(userID string, limit, offset int) ([]domain.Transfer, int64, error) {
+	withdrawals, total, err := s.repo.ListByUser(userID, domain.KindWithdrawal, limit, offset)
 	if err != nil {
-		return nil, apperror.Internal("failed to list withdrawals", err)
+		return nil, 0, apperror.Internal("failed to list withdrawals", err)
 	}
-	return withdrawals, nil
+	return withdrawals, total, nil
 }
 
 func (s *Service) execute(userID, kind string, from, to *accountDomain.Account, req domain.CreateTransferRequest) (*domain.Transfer, error) {

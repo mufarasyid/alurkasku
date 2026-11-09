@@ -57,22 +57,39 @@ func (r *PostgresRepository) BulkDelete(userID string, ids []string) (int64, err
 	return res.RowsAffected()
 }
 
-func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilters) ([]domain.Category, error) {
-	query := `SELECT id, user_id, name, type, icon, created_at, updated_at FROM categories WHERE user_id = $1`
+func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilters) ([]domain.Category, int64, error) {
+	where := ` WHERE user_id = $1`
 	args := []interface{}{userID}
 	if filters.Type != "" {
 		args = append(args, filters.Type)
-		query += fmt.Sprintf(` AND type = $%d`, len(args))
+		where += fmt.Sprintf(` AND type = $%d`, len(args))
 	}
 	if q := strings.TrimSpace(filters.Query); q != "" {
 		args = append(args, "%"+ilikeEscaper.Replace(q)+"%")
-		query += fmt.Sprintf(` AND name ILIKE $%d`, len(args))
+		where += fmt.Sprintf(` AND name ILIKE $%d`, len(args))
 	}
+
+	var total int64
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM categories`+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	page := filters.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filters.PageSize
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+	query := `SELECT id, user_id, name, type, icon, created_at, updated_at FROM categories` + where
 	query += ` ORDER BY created_at DESC`
+	args = append(args, pageSize, (page-1)*pageSize)
+	query += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -80,11 +97,11 @@ func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilter
 	for rows.Next() {
 		c := domain.Category{}
 		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.Type, &c.Icon, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		categories = append(categories, c)
 	}
-	return categories, rows.Err()
+	return categories, total, rows.Err()
 }
 
 func (r *PostgresRepository) CountByUser(userID string) (int, error) {

@@ -133,11 +133,18 @@ func (h *Handler) BulkDeleteCategories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
-	filters := domain.ListFilters{
-		Type:  r.URL.Query().Get("type"),
-		Query: r.URL.Query().Get("q"),
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
 	}
-	categories, err := h.svc.ListCategories(userIDFrom(r), filters)
+	filters := domain.ListFilters{
+		Type:     r.URL.Query().Get("type"),
+		Query:    r.URL.Query().Get("q"),
+		Page:     page,
+		PageSize: pageSize,
+	}
+	categories, total, err := h.svc.ListCategories(userIDFrom(r), filters)
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -146,5 +153,5 @@ func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	for i, c := range categories {
 		resp[i] = domain.ToResponse(c)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }

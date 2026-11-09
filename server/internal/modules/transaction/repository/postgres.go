@@ -81,38 +81,50 @@ func (r *PostgresRepository) GetByID(userID, id string) (*domain.Transaction, er
 	return &t, nil
 }
 
-func (r *PostgresRepository) List(userID string, filters domain.ListFilters) ([]domain.Transaction, error) {
-	query := selectTransaction + ` WHERE t.user_id = $1`
+func (r *PostgresRepository) List(userID string, filters domain.ListFilters) ([]domain.Transaction, int64, error) {
+	where := ` WHERE t.user_id = $1`
 	args := []interface{}{userID}
 	if filters.Type != "" {
 		args = append(args, filters.Type)
-		query += fmt.Sprintf(` AND t.type = $%d`, len(args))
+		where += fmt.Sprintf(` AND t.type = $%d`, len(args))
 	}
 	if q := strings.TrimSpace(filters.Query); q != "" {
 		args = append(args, "%"+ilikeEscaper.Replace(q)+"%")
-		query += fmt.Sprintf(` AND (t.note ILIKE $%d OR c.name ILIKE $%d OR a.name ILIKE $%d)`, len(args), len(args), len(args))
+		where += fmt.Sprintf(` AND (t.note ILIKE $%d OR c.name ILIKE $%d OR a.name ILIKE $%d)`, len(args), len(args), len(args))
 	}
 	if filters.From != nil {
 		args = append(args, *filters.From)
-		query += fmt.Sprintf(` AND t.occurred_at >= $%d`, len(args))
+		where += fmt.Sprintf(` AND t.occurred_at >= $%d`, len(args))
 	}
 	if filters.To != nil {
 		args = append(args, *filters.To)
-		query += fmt.Sprintf(` AND t.occurred_at < $%d`, len(args))
+		where += fmt.Sprintf(` AND t.occurred_at < $%d`, len(args))
 	}
-	limit := filters.Limit
-	if limit <= 0 {
-		limit = 50
+
+	countQuery := `SELECT COUNT(*) FROM transactions t
+		LEFT JOIN categories c ON c.id = t.category_id
+		LEFT JOIN accounts a ON a.id = t.account_id` + where
+	var total int64
+	if err := r.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
 	}
-	if limit > 100 {
-		limit = 100
+
+	page := filters.Page
+	if page < 1 {
+		page = 1
 	}
-	args = append(args, limit)
-	query += fmt.Sprintf(` ORDER BY t.occurred_at DESC LIMIT $%d`, len(args))
+	pageSize := filters.PageSize
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+	query := selectTransaction + where
+	query += ` ORDER BY t.occurred_at DESC`
+	args = append(args, pageSize, (page-1)*pageSize)
+	query += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -120,11 +132,11 @@ func (r *PostgresRepository) List(userID string, filters domain.ListFilters) ([]
 	for rows.Next() {
 		t, err := scanTransaction(rows.Scan)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		transactions = append(transactions, t)
 	}
-	return transactions, rows.Err()
+	return transactions, total, rows.Err()
 }
 
 func (r *PostgresRepository) SumBetween(userID string, from, to time.Time) (domain.Sums, error) {

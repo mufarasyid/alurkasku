@@ -75,23 +75,32 @@ func (r *PostgresRepository) CreateGroup(g *domain.Group, members []domain.Parti
 	return nil
 }
 
-func (r *PostgresRepository) ListGroups(userID string) ([]domain.Group, error) {
-	rows, err := r.db.Query(selectGroup+` WHERE g.creator_user_id = $1
-		OR EXISTS (SELECT 1 FROM patungan_participants p WHERE p.group_id = g.id AND p.linked_user_id = $1)
-		ORDER BY g.updated_at DESC LIMIT 100`, userID)
+func (r *PostgresRepository) ListGroups(userID string, limit, offset int) ([]domain.Group, int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	const groupWhere = ` WHERE g.creator_user_id = $1 OR EXISTS (SELECT 1 FROM patungan_participants p WHERE p.group_id = g.id AND p.linked_user_id = $1)`
+	var total int64
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM patungan_groups g`+groupWhere, userID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.Query(selectGroup+groupWhere+` ORDER BY g.updated_at DESC LIMIT $2 OFFSET $3`, userID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var groups []domain.Group
 	for rows.Next() {
 		g, err := scanGroup(rows.Scan)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		groups = append(groups, g)
 	}
-	return groups, rows.Err()
+	return groups, total, rows.Err()
 }
 
 func (r *PostgresRepository) GetGroup(userID, groupID string) (*domain.Group, error) {
@@ -282,29 +291,39 @@ func (r *PostgresRepository) CreateExpense(e *domain.Expense, splits []domain.Sp
 	return r.loadSplits(e)
 }
 
-func (r *PostgresRepository) ListExpenses(groupID string) ([]domain.Expense, error) {
-	rows, err := r.db.Query(selectExpense+` WHERE e.group_id = $1 ORDER BY e.occurred_at DESC, e.created_at DESC LIMIT 100`, groupID)
+func (r *PostgresRepository) ListExpenses(groupID string, limit, offset int) ([]domain.Expense, int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var total int64
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM patungan_expenses WHERE group_id = $1`, groupID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.Query(selectExpense+` WHERE e.group_id = $1 ORDER BY e.occurred_at DESC, e.created_at DESC LIMIT $2 OFFSET $3`, groupID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var out []domain.Expense
 	for rows.Next() {
 		var e domain.Expense
 		if err := rows.Scan(&e.ID, &e.GroupID, &e.PayerMemberID, &e.PayerName, &e.CreatedByUserID, &e.CategoryID, &e.TotalAmount, &e.Note, &e.OccurredAt, &e.CreatedAt, &e.UpdatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, e)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for i := range out {
 		if err := r.loadSplits(&out[i]); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
-	return out, nil
+	return out, total, nil
 }
 
 func (r *PostgresRepository) GetExpense(groupID, expenseID string) (*domain.Expense, error) {
@@ -368,21 +387,31 @@ func (r *PostgresRepository) CreateSettlement(s *domain.Settlement) error {
 	return nil
 }
 
-func (r *PostgresRepository) ListSettlements(groupID string) ([]domain.Settlement, error) {
-	rows, err := r.db.Query(selectSettlement+` WHERE s.group_id = $1 ORDER BY s.occurred_at DESC, s.created_at DESC LIMIT 100`, groupID)
+func (r *PostgresRepository) ListSettlements(groupID string, limit, offset int) ([]domain.Settlement, int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var total int64
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM patungan_settlements WHERE group_id = $1`, groupID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.Query(selectSettlement+` WHERE s.group_id = $1 ORDER BY s.occurred_at DESC, s.created_at DESC LIMIT $2 OFFSET $3`, groupID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var out []domain.Settlement
 	for rows.Next() {
 		s, err := scanSettlement(rows.Scan)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, s)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 func (r *PostgresRepository) DeleteSettlement(groupID, settlementID string) error {

@@ -74,7 +74,12 @@ func (h *Handler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListGroups(w http.ResponseWriter, r *http.Request) {
-	groups, err := h.svc.ListGroups(userIDFrom(r))
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
+	}
+	groups, total, err := h.svc.ListGroups(userIDFrom(r), pageSize, httpx.Offset(page, pageSize))
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -83,7 +88,7 @@ func (h *Handler) ListGroups(w http.ResponseWriter, r *http.Request) {
 	for i, g := range groups {
 		resp[i] = domain.ToGroupResponse(g)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }
 
 func (h *Handler) GetGroup(w http.ResponseWriter, r *http.Request) {
@@ -233,7 +238,12 @@ func (h *Handler) ListExpenses(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	expenses, err := h.svc.ListExpenses(userIDFrom(r), gid)
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
+	}
+	expenses, total, err := h.svc.ListExpenses(userIDFrom(r), gid, pageSize, httpx.Offset(page, pageSize))
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -242,7 +252,7 @@ func (h *Handler) ListExpenses(w http.ResponseWriter, r *http.Request) {
 	for i, e := range expenses {
 		resp[i] = domain.ToExpenseResponse(e)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }
 
 func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +289,12 @@ func (h *Handler) ListSettlements(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	settlements, err := h.svc.ListSettlements(userIDFrom(r), gid)
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
+	}
+	settlements, total, err := h.svc.ListSettlements(userIDFrom(r), gid, pageSize, httpx.Offset(page, pageSize))
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -288,7 +303,7 @@ func (h *Handler) ListSettlements(w http.ResponseWriter, r *http.Request) {
 	for i, s := range settlements {
 		resp[i] = domain.ToSettlementResponse(s)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }
 
 func (h *Handler) DeleteSettlement(w http.ResponseWriter, r *http.Request) {

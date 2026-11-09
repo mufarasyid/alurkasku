@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/mufarasyid/alurkasku/server/internal/modules/auth/domain"
+	budgetDomain "github.com/mufarasyid/alurkasku/server/internal/modules/budget/domain"
 	catDomain "github.com/mufarasyid/alurkasku/server/internal/modules/category/domain"
 	userDomain "github.com/mufarasyid/alurkasku/server/internal/modules/user/domain"
 	"github.com/mufarasyid/alurkasku/server/internal/platform/security"
@@ -17,22 +18,30 @@ type Service struct {
 	userRepo       userDomain.UserRepository
 	userSvc        userDomain.UserService
 	categorySeeder catDomain.CategorySeeder
+	budgetSeeder   budgetDomain.BudgetSeeder
 	jwtMgr         *security.Manager
 	accessExpiry   time.Duration
 	refreshExpiry  time.Duration
 	logger         zerolog.Logger
 }
 
-func New(authRepo domain.RefreshTokenRepository, userRepo userDomain.UserRepository, userSvc userDomain.UserService, categorySeeder catDomain.CategorySeeder, jwtMgr *security.Manager, accessExpiry, refreshExpiry time.Duration, logger zerolog.Logger) *Service {
+func New(authRepo domain.RefreshTokenRepository, userRepo userDomain.UserRepository, userSvc userDomain.UserService, categorySeeder catDomain.CategorySeeder, budgetSeeder budgetDomain.BudgetSeeder, jwtMgr *security.Manager, accessExpiry, refreshExpiry time.Duration, logger zerolog.Logger) *Service {
 	return &Service{
 		authRepo:       authRepo,
 		userRepo:       userRepo,
 		userSvc:        userSvc,
 		categorySeeder: categorySeeder,
+		budgetSeeder:   budgetSeeder,
 		jwtMgr:         jwtMgr,
 		accessExpiry:   accessExpiry,
 		refreshExpiry:  refreshExpiry,
 		logger:         logger,
+	}
+}
+
+func (s *Service) seedBudgets(userID string) {
+	if err := s.budgetSeeder.SeedDefaults(userID); err != nil {
+		s.logger.Warn().Str("user_id", userID).Err(err).Msg("failed to seed default budgets")
 	}
 }
 
@@ -62,6 +71,7 @@ func (s *Service) Register(req domain.RegisterRequest) (*domain.AuthResponse, er
 	if err := s.categorySeeder.SeedDefaults(u.ID); err != nil {
 		s.logger.Warn().Str("user_id", u.ID).Err(err).Msg("failed to seed default categories")
 	}
+	s.seedBudgets(u.ID)
 
 	return s.issueTokens(u.ID, u.Email, u.Name, string(u.Role))
 }
@@ -78,6 +88,9 @@ func (s *Service) Login(req domain.LoginRequest) (*domain.AuthResponse, error) {
 	if err := security.CheckPassword(req.Password, u.Password); err != nil {
 		return nil, apperror.Unauthorized("invalid email or password")
 	}
+
+	// Backfill budgets for accounts created before this seeding existed.
+	s.seedBudgets(u.ID)
 
 	return s.issueTokens(u.ID, u.Email, u.Name, string(u.Role))
 }

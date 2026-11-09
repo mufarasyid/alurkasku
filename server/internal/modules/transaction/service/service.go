@@ -84,15 +84,15 @@ func (s *Service) CreateTransaction(userID string, req domain.CreateTransactionR
 	return t, nil
 }
 
-func (s *Service) ListTransactions(userID string, filters domain.ListFilters) ([]domain.Transaction, error) {
+func (s *Service) ListTransactions(userID string, filters domain.ListFilters) ([]domain.Transaction, int64, error) {
 	if filters.Type != "" && filters.Type != domain.TypeIncome && filters.Type != domain.TypeExpense {
-		return nil, apperror.BadRequest("type must be one of: Income, Expense")
+		return nil, 0, apperror.BadRequest("type must be one of: Income, Expense")
 	}
-	transactions, err := s.repo.List(userID, filters)
+	transactions, total, err := s.repo.List(userID, filters)
 	if err != nil {
-		return nil, apperror.Internal("failed to list transactions", err)
+		return nil, 0, apperror.Internal("failed to list transactions", err)
 	}
-	return transactions, nil
+	return transactions, total, nil
 }
 
 func (s *Service) GetOverview(userID, period string) (*domain.OverviewResponse, error) {

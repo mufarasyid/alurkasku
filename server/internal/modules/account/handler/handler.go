@@ -133,11 +133,18 @@ func (h *Handler) BulkDeleteAccounts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListAccounts(w http.ResponseWriter, r *http.Request) {
-	filters := domain.ListFilters{
-		Type:  r.URL.Query().Get("type"),
-		Query: r.URL.Query().Get("q"),
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
 	}
-	accounts, err := h.svc.ListAccounts(userIDFrom(r), filters)
+	filters := domain.ListFilters{
+		Type:     r.URL.Query().Get("type"),
+		Query:    r.URL.Query().Get("q"),
+		Page:     page,
+		PageSize: pageSize,
+	}
+	accounts, total, err := h.svc.ListAccounts(userIDFrom(r), filters)
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -146,5 +153,5 @@ func (h *Handler) ListAccounts(w http.ResponseWriter, r *http.Request) {
 	for i, a := range accounts {
 		resp[i] = domain.ToResponse(a)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }

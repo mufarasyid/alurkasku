@@ -18,6 +18,58 @@ func New(repo domain.BudgetRepository, categoryRepo catDomain.CategoryRepository
 	return &Service{repo: repo, categoryRepo: categoryRepo}
 }
 
+var defaultBudgets = []struct {
+	name, category, period, icon string
+	limit                        int64
+}{
+	{name: "Food & Drinks", category: "Food & Drinks", period: domain.PeriodMonthly, limit: 2_000_000, icon: "Utensils"},
+	{name: "Coffee", category: "Coffee", period: domain.PeriodMonthly, limit: 300_000, icon: "Coffee"},
+	{name: "Transportation", category: "Transportation", period: domain.PeriodMonthly, limit: 500_000, icon: "Car"},
+	{name: "Home", category: "Housing & Utilities", period: domain.PeriodMonthly, limit: 1_500_000, icon: "Home"},
+	{name: "Dating", period: domain.PeriodMonthly, limit: 750_000, icon: "Flower2"},
+	{name: "Shopping", category: "Shopping", period: domain.PeriodMonthly, limit: 1_000_000, icon: "ShoppingBag"},
+	{name: "Health", category: "Health", period: domain.PeriodMonthly, limit: 400_000, icon: "HeartPulse"},
+	{name: "Entertainment", category: "Entertainment", period: domain.PeriodMonthly, limit: 500_000, icon: "Clapperboard"},
+	{name: "Education", category: "Education", period: domain.PeriodMonthly, limit: 500_000, icon: "GraduationCap"},
+	{name: "Gifts & Donations", category: "Gifts & Donations", period: domain.PeriodMonthly, limit: 300_000, icon: "Gift"},
+	{name: "Subscriptions", category: "Subscriptions", period: domain.PeriodMonthly, limit: 200_000, icon: "Repeat"},
+	{name: "Travel", category: "Travel", period: domain.PeriodYearly, limit: 5_000_000, icon: "Plane"},
+}
+
+func (s *Service) SeedDefaults(userID string) error {
+	existing, err := s.repo.CountByUser(userID)
+	if err != nil {
+		return apperror.Internal("failed to check budgets", err)
+	}
+	if existing > 0 {
+		return nil
+	}
+	categories, _, err := s.categoryRepo.ListByUser(userID, catDomain.ListFilters{})
+	if err != nil {
+		return apperror.Internal("failed to list categories", err)
+	}
+	categoryIDs := make(map[string]string, len(categories))
+	for _, c := range categories {
+		categoryIDs[c.Name] = c.ID
+	}
+	for _, d := range defaultBudgets {
+		b := &domain.Budget{
+			UserID: userID,
+			Name:   d.name,
+			Period: d.period,
+			Limit:  d.limit,
+			Icon:   d.icon,
+		}
+		if id, ok := categoryIDs[d.category]; ok {
+			b.CategoryID = &id
+		}
+		if err := s.repo.Create(b); err != nil {
+			return apperror.Internal("failed to seed default budgets", err)
+		}
+	}
+	return nil
+}
+
 func (s *Service) CreateBudget(userID string, req domain.CreateBudgetRequest) (*domain.Budget, error) {
 	b := &domain.Budget{
 		UserID: userID,
@@ -111,15 +163,15 @@ func (s *Service) BulkDeleteBudgets(userID string, ids []string) (int64, error) 
 	return affected, nil
 }
 
-func (s *Service) ListBudgets(userID string, filters domain.ListFilters) ([]domain.Budget, error) {
+func (s *Service) ListBudgets(userID string, filters domain.ListFilters) ([]domain.Budget, int64, error) {
 	if filters.Period != "" && !isValidPeriod(filters.Period) {
-		return nil, apperror.BadRequest("period must be one of: Weekly, Monthly, Yearly")
+		return nil, 0, apperror.BadRequest("period must be one of: Weekly, Monthly, Yearly")
 	}
-	budgets, err := s.repo.ListByUser(userID, filters)
+	budgets, total, err := s.repo.ListByUser(userID, filters)
 	if err != nil {
-		return nil, apperror.Internal("failed to list budgets", err)
+		return nil, 0, apperror.Internal("failed to list budgets", err)
 	}
-	return budgets, nil
+	return budgets, total, nil
 }
 
 func (s *Service) resolveCategory(userID string, categoryID *string) (*string, error) {

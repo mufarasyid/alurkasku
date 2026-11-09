@@ -156,15 +156,15 @@ func (s *Service) CreateGroup(userID string, req domain.CreateGroupRequest) (*do
 	return g, participants, nil
 }
 
-func (s *Service) ListGroups(userID string) ([]domain.Group, error) {
-	groups, err := s.repo.ListGroups(userID)
+func (s *Service) ListGroups(userID string, limit, offset int) ([]domain.Group, int64, error) {
+	groups, total, err := s.repo.ListGroups(userID, limit, offset)
 	if err != nil {
-		return nil, apperror.Internal("failed to list groups", err)
+		return nil, 0, apperror.Internal("failed to list groups", err)
 	}
 	if groups == nil {
 		groups = []domain.Group{}
 	}
-	return groups, nil
+	return groups, total, nil
 }
 
 func (s *Service) GetGroup(userID, groupID string) (*domain.Group, []domain.Participant, error) {
@@ -501,19 +501,19 @@ func (s *Service) CreateExpense(userID, groupID string, req domain.CreateExpense
 	return e, nil
 }
 
-func (s *Service) ListExpenses(userID, groupID string) ([]domain.Expense, error) {
+func (s *Service) ListExpenses(userID, groupID string, limit, offset int) ([]domain.Expense, int64, error) {
 	g, _, err := s.accessibleGroup(userID, groupID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	expenses, err := s.repo.ListExpenses(g.ID)
+	expenses, total, err := s.repo.ListExpenses(g.ID, limit, offset)
 	if err != nil {
-		return nil, apperror.Internal("failed to list expenses", err)
+		return nil, 0, apperror.Internal("failed to list expenses", err)
 	}
 	if expenses == nil {
 		expenses = []domain.Expense{}
 	}
-	return expenses, nil
+	return expenses, total, nil
 }
 
 func (s *Service) DeleteExpense(userID, groupID, expenseID string) error {
@@ -595,19 +595,19 @@ func (s *Service) CreateSettlement(userID, groupID string, req domain.CreateSett
 	return st, nil
 }
 
-func (s *Service) ListSettlements(userID, groupID string) ([]domain.Settlement, error) {
+func (s *Service) ListSettlements(userID, groupID string, limit, offset int) ([]domain.Settlement, int64, error) {
 	g, _, err := s.accessibleGroup(userID, groupID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	settlements, err := s.repo.ListSettlements(g.ID)
+	settlements, total, err := s.repo.ListSettlements(g.ID, limit, offset)
 	if err != nil {
-		return nil, apperror.Internal("failed to list settlements", err)
+		return nil, 0, apperror.Internal("failed to list settlements", err)
 	}
 	if settlements == nil {
 		settlements = []domain.Settlement{}
 	}
-	return settlements, nil
+	return settlements, total, nil
 }
 
 func (s *Service) DeleteSettlement(userID, groupID, settlementID string) error {

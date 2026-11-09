@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/mufarasyid/alurkasku/server/internal/modules/transaction/domain"
 	"github.com/mufarasyid/alurkasku/server/internal/modules/transaction/service"
@@ -49,9 +48,16 @@ func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListTransactions(w http.ResponseWriter, r *http.Request) {
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
+		return
+	}
 	filters := domain.ListFilters{
-		Type:  r.URL.Query().Get("type"),
-		Query: r.URL.Query().Get("q"),
+		Type:     r.URL.Query().Get("type"),
+		Query:    r.URL.Query().Get("q"),
+		Page:     page,
+		PageSize: pageSize,
 	}
 	if v := r.URL.Query().Get("period"); v != "" {
 		from, to, err := service.PeriodWindow(v)
@@ -62,15 +68,7 @@ func (h *Handler) ListTransactions(w http.ResponseWriter, r *http.Request) {
 		filters.From = &from
 		filters.To = &to
 	}
-	if v := r.URL.Query().Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 100 {
-			httpx.WriteError(w, apperror.BadRequest("invalid limit"), http.StatusBadRequest)
-			return
-		}
-		filters.Limit = n
-	}
-	transactions, err := h.svc.ListTransactions(userIDFrom(r), filters)
+	transactions, total, err := h.svc.ListTransactions(userIDFrom(r), filters)
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -79,7 +77,7 @@ func (h *Handler) ListTransactions(w http.ResponseWriter, r *http.Request) {
 	for i, t := range transactions {
 		resp[i] = domain.ToResponse(t)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }
 
 func (h *Handler) GetOverview(w http.ResponseWriter, r *http.Request) {

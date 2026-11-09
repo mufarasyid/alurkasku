@@ -13,6 +13,7 @@ import (
 	authRepo "github.com/mufarasyid/alurkasku/server/internal/modules/auth/repository"
 	authRoute "github.com/mufarasyid/alurkasku/server/internal/modules/auth/route"
 	authService "github.com/mufarasyid/alurkasku/server/internal/modules/auth/service"
+	budgetDomain "github.com/mufarasyid/alurkasku/server/internal/modules/budget/domain"
 	budgetRepo "github.com/mufarasyid/alurkasku/server/internal/modules/budget/repository"
 	budgetRoute "github.com/mufarasyid/alurkasku/server/internal/modules/budget/route"
 	budgetService "github.com/mufarasyid/alurkasku/server/internal/modules/budget/service"
@@ -85,14 +86,14 @@ func NewApp(cfg *config.Config) (*App, error) {
 	categoryRepository := catRepo.NewPostgresRepository(postgres.DB)
 	categorySvc := catService.New(categoryRepository)
 
+	budgetRepository := budgetRepo.NewPostgresRepository(postgres.DB)
+	budgetSvc := budgetService.New(budgetRepository, categoryRepository)
+
 	authRepository := authRepo.NewPostgresRepository(postgres.DB)
-	authSvc := authService.New(authRepository, userRepository, userSvc, categorySvc, jwtMgr, cfg.JWT.AccessTokenExpiry, cfg.JWT.RefreshTokenExpiry, log.Logger)
+	authSvc := authService.New(authRepository, userRepository, userSvc, categorySvc, budgetSvc, jwtMgr, cfg.JWT.AccessTokenExpiry, cfg.JWT.RefreshTokenExpiry, log.Logger)
 
 	accountRepository := accountRepo.NewPostgresRepository(postgres.DB)
 	accountSvc := accountService.New(accountRepository)
-
-	budgetRepository := budgetRepo.NewPostgresRepository(postgres.DB)
-	budgetSvc := budgetService.New(budgetRepository, categoryRepository)
 
 	transactionRepository := transactionRepo.NewPostgresRepository(postgres.DB)
 	transactionSvc := transactionService.New(transactionRepository, accountRepository, categoryRepository)
@@ -145,4 +146,5 @@ var (
 	_ userDomain.UserRepository         = (*userRepo.PostgresRepository)(nil)
 	_ authDomain.RefreshTokenRepository = (*authRepo.PostgresRepository)(nil)
 	_ catDomain.CategorySeeder          = (*catService.Service)(nil)
+	_ budgetDomain.BudgetSeeder         = (*budgetService.Service)(nil)
 )

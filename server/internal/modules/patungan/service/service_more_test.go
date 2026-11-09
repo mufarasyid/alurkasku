@@ -25,7 +25,7 @@ type fakeRepo struct {
 }
 
 func (f *fakeRepo) CreateGroup(*domain.Group, []domain.Participant) error { return nil }
-func (f *fakeRepo) ListGroups(string) ([]domain.Group, error)             { return nil, nil }
+func (f *fakeRepo) ListGroups(string, int, int) ([]domain.Group, int64, error) { return nil, 0, nil }
 func (f *fakeRepo) GetGroup(string, string) (*domain.Group, error)        { return f.group, nil }
 func (f *fakeRepo) UpdateGroup(string, string, string, string) (*domain.Group, error) {
 	return f.group, nil
@@ -46,15 +46,15 @@ func (f *fakeRepo) LinkParticipant(string, string, string) (*domain.Participant,
 	return &domain.Participant{ID: testMemberID}, nil
 }
 func (f *fakeRepo) CreateExpense(*domain.Expense, []domain.Split) error { return nil }
-func (f *fakeRepo) ListExpenses(string) ([]domain.Expense, error)       { return nil, nil }
+func (f *fakeRepo) ListExpenses(string, int, int) ([]domain.Expense, int64, error) { return nil, 0, nil }
 func (f *fakeRepo) GetExpense(string, string) (*domain.Expense, error)  { return f.expense, nil }
 func (f *fakeRepo) DeleteExpense(string, string) error {
 	f.deleteExpense = true
 	return nil
 }
 func (f *fakeRepo) CreateSettlement(*domain.Settlement) error { return nil }
-func (f *fakeRepo) ListSettlements(string) ([]domain.Settlement, error) {
-	return nil, nil
+func (f *fakeRepo) ListSettlements(string, int, int) ([]domain.Settlement, int64, error) {
+	return nil, 0, nil
 }
 func (f *fakeRepo) DeleteSettlement(string, string) error {
 	f.deleteSettle = true
@@ -93,8 +93,8 @@ func (f *fakeCatRepo) Delete(string, string) (int64, error) {
 	return 0, nil
 }
 func (f *fakeCatRepo) BulkDelete(string, []string) (int64, error) { return 0, nil }
-func (f *fakeCatRepo) ListByUser(string, catDomain.ListFilters) ([]catDomain.Category, error) {
-	return nil, nil
+func (f *fakeCatRepo) ListByUser(string, catDomain.ListFilters) ([]catDomain.Category, int64, error) {
+	return nil, 0, nil
 }
 func (f *fakeCatRepo) CountByUser(string) (int, error) { return 0, nil }
 

@@ -75,13 +75,20 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW()) RETURNING id, created_at, updated_a
 	return nil
 }
 
-func (r *PostgresRepository) ListByUser(userID, kind string, limit int) ([]domain.Transfer, error) {
+func (r *PostgresRepository) ListByUser(userID, kind string, limit, offset int) ([]domain.Transfer, int64, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	rows, err := r.db.Query(selectTransfer+` WHERE t.user_id = $1 AND t.kind = $2 ORDER BY t.occurred_at DESC LIMIT $3`, userID, kind, limit)
+	if offset < 0 {
+		offset = 0
+	}
+	var total int64
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM transfers WHERE user_id = $1 AND kind = $2`, userID, kind).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.Query(selectTransfer+` WHERE t.user_id = $1 AND t.kind = $2 ORDER BY t.occurred_at DESC LIMIT $3 OFFSET $4`, userID, kind, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -89,9 +96,9 @@ func (r *PostgresRepository) ListByUser(userID, kind string, limit int) ([]domai
 	for rows.Next() {
 		t, err := scanTransfer(rows.Scan)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		transfers = append(transfers, t)
 	}
-	return transfers, rows.Err()
+	return transfers, total, rows.Err()
 }

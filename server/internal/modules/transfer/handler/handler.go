@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/mufarasyid/alurkasku/server/internal/modules/transfer/domain"
 	"github.com/mufarasyid/alurkasku/server/internal/modules/transfer/service"
@@ -46,18 +45,6 @@ func writeTransfer(w http.ResponseWriter, t *domain.Transfer, err error) {
 	httpx.WriteJSON(w, response.Created(domain.ToResponse(*t)), http.StatusCreated)
 }
 
-func listLimit(r *http.Request) (int, bool) {
-	limit := 50
-	if v := r.URL.Query().Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 100 {
-			return 0, false
-		}
-		limit = n
-	}
-	return limit, true
-}
-
 func (h *Handler) CreateTransfer(w http.ResponseWriter, r *http.Request) {
 	req, ok := decodeRequest(w, r)
 	if !ok {
@@ -87,12 +74,12 @@ func (h *Handler) CreateWithdrawal(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListTransfers(w http.ResponseWriter, r *http.Request) {
-	limit, ok := listLimit(r)
-	if !ok {
-		httpx.WriteError(w, apperror.BadRequest("invalid limit"), http.StatusBadRequest)
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
 	}
-	transfers, err := h.svc.ListTransfers(userIDFrom(r), limit)
+	transfers, total, err := h.svc.ListTransfers(userIDFrom(r), pageSize, httpx.Offset(page, pageSize))
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -101,16 +88,16 @@ func (h *Handler) ListTransfers(w http.ResponseWriter, r *http.Request) {
 	for i, t := range transfers {
 		resp[i] = domain.ToResponse(t)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }
 
 func (h *Handler) ListWithdrawals(w http.ResponseWriter, r *http.Request) {
-	limit, ok := listLimit(r)
-	if !ok {
-		httpx.WriteError(w, apperror.BadRequest("invalid limit"), http.StatusBadRequest)
+	page, pageSize, err := httpx.ParsePagination(r)
+	if err != nil {
+		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
 	}
-	withdrawals, err := h.svc.ListWithdrawals(userIDFrom(r), limit)
+	withdrawals, total, err := h.svc.ListWithdrawals(userIDFrom(r), pageSize, httpx.Offset(page, pageSize))
 	if err != nil {
 		httpx.WriteError(w, err, httpx.ErrHTTPStatus(err))
 		return
@@ -119,5 +106,5 @@ func (h *Handler) ListWithdrawals(w http.ResponseWriter, r *http.Request) {
 	for i, t := range withdrawals {
 		resp[i] = domain.ToResponse(t)
 	}
-	httpx.WriteJSON(w, response.OK(resp), http.StatusOK)
+	httpx.WriteJSON(w, response.WithMeta(resp, page, pageSize, total), http.StatusOK)
 }

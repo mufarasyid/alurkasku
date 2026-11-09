@@ -95,15 +95,15 @@ func (s *Service) BulkDeleteAccounts(userID string, ids []string) (int64, error)
 	return affected, nil
 }
 
-func (s *Service) ListAccounts(userID string, filters domain.ListFilters) ([]domain.Account, error) {
+func (s *Service) ListAccounts(userID string, filters domain.ListFilters) ([]domain.Account, int64, error) {
 	if filters.Type != "" && !isValidType(filters.Type) {
-		return nil, apperror.BadRequest("type must be one of: Bank, Wallet, Cash")
+		return nil, 0, apperror.BadRequest("type must be one of: Bank, Wallet, Cash")
 	}
-	accounts, err := s.repo.ListByUser(userID, filters)
+	accounts, total, err := s.repo.ListByUser(userID, filters)
 	if err != nil {
-		return nil, apperror.Internal("failed to list accounts", err)
+		return nil, 0, apperror.Internal("failed to list accounts", err)
 	}
-	return accounts, nil
+	return accounts, total, nil
 }
 
 func validateAccount(name, typ, detail string, balance int64, icon string) error {

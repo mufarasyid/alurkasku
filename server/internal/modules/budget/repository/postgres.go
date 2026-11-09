@@ -20,8 +20,25 @@ func NewPostgresRepository(db *sql.DB) *PostgresRepository {
 
 var ilikeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-const selectBudget = `SELECT b.id, b.user_id, b.name, b.category_id, COALESCE(c.name, ''), b.period, b.limit_amount, b.spent, b.icon, b.created_at, b.updated_at
-FROM budgets b LEFT JOIN categories c ON c.id = b.category_id`
+// spent is derived from expense transactions in the budget's category within
+// the current period window (week / month / year), so it always reflects the
+// latest transactions without a stored counter to keep in sync.
+const selectBudget = `SELECT b.id, b.user_id, b.name, b.category_id, COALESCE(c.name, ''), b.period, b.limit_amount, COALESCE(SUM(t.amount), 0) AS spent, b.icon, b.created_at, b.updated_at
+FROM budgets b
+LEFT JOIN categories c ON c.id = b.category_id
+LEFT JOIN transactions t ON t.category_id = b.category_id
+  AND t.user_id = b.user_id
+  AND t.type = 'Expense'
+  AND t.occurred_at >= CASE b.period
+    WHEN 'Weekly' THEN date_trunc('week', NOW())
+    WHEN 'Yearly' THEN date_trunc('year', NOW())
+    ELSE date_trunc('month', NOW())
+  END
+  AND t.occurred_at < CASE b.period
+    WHEN 'Weekly' THEN date_trunc('week', NOW()) + INTERVAL '1 week'
+    WHEN 'Yearly' THEN date_trunc('year', NOW()) + INTERVAL '1 year'
+    ELSE date_trunc('month', NOW()) + INTERVAL '1 month'
+  END`
 
 func scanBudget(scan func(dest ...interface{}) error) (domain.Budget, error) {
 	b := domain.Budget{}
@@ -43,7 +60,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW()) RETURNING id, created_at, updated_at`
 }
 
 func (r *PostgresRepository) GetByID(userID, id string) (*domain.Budget, error) {
-	row := r.db.QueryRow(selectBudget+` WHERE b.id = $1 AND b.user_id = $2`, id, userID)
+	row := r.db.QueryRow(selectBudget+` WHERE b.id = $1 AND b.user_id = $2 GROUP BY b.id, c.name`, id, userID)
 	b, err := scanBudget(row.Scan)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -76,8 +93,14 @@ func (r *PostgresRepository) BulkDelete(userID string, ids []string) (int64, err
 	return res.RowsAffected()
 }
 
-func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilters) ([]domain.Budget, error) {
-	query := selectBudget + ` WHERE b.user_id = $1`
+func (r *PostgresRepository) CountByUser(userID string) (int, error) {
+	var count int
+	err := r.db.QueryRow(`SELECT COUNT(*) FROM budgets WHERE user_id = $1`, userID).Scan(&count)
+	return count, err
+}
+
+func budgetsWhere(userID string, filters domain.ListFilters) (string, []interface{}) {
+	query := ` WHERE b.user_id = $1`
 	args := []interface{}{userID}
 	if filters.Period != "" {
 		args = append(args, filters.Period)
@@ -87,11 +110,38 @@ func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilter
 		args = append(args, "%"+ilikeEscaper.Replace(q)+"%")
 		query += fmt.Sprintf(` AND (b.name ILIKE $%d OR c.name ILIKE $%d)`, len(args), len(args))
 	}
-	query += ` ORDER BY b.created_at DESC`
+	return query, args
+}
+
+func countBudgets(db *sql.DB, where string, args []interface{}) (int64, error) {
+	var total int64
+	err := db.QueryRow(`SELECT COUNT(*) FROM budgets b LEFT JOIN categories c ON c.id = b.category_id`+where, args...).Scan(&total)
+	return total, err
+}
+
+func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilters) ([]domain.Budget, int64, error) {
+	where, args := budgetsWhere(userID, filters)
+	total, err := countBudgets(r.db, where, args)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	page := filters.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filters.PageSize
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+	query := selectBudget + where
+	query += ` GROUP BY b.id, c.name ORDER BY b.created_at DESC`
+	args = append(args, pageSize, (page-1)*pageSize)
+	query += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -99,9 +149,9 @@ func (r *PostgresRepository) ListByUser(userID string, filters domain.ListFilter
 	for rows.Next() {
 		b, err := scanBudget(rows.Scan)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		budgets = append(budgets, b)
 	}
-	return budgets, rows.Err()
+	return budgets, total, rows.Err()
 }

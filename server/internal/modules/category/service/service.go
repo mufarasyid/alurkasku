@@ -32,6 +32,7 @@ var defaultCategories = []struct {
 	{"Subscriptions", domain.TypeExpense, "Repeat"},
 	{"Gifts & Donations", domain.TypeExpense, "Gift"},
 	{"Coffee", domain.TypeExpense, "Coffee"},
+	{"Dating", domain.TypeExpense, "Flower2"},
 }
 
 func (s *Service) SeedDefaults(userID string) error {
@@ -123,15 +124,15 @@ func (s *Service) BulkDeleteCategories(userID string, ids []string) (int64, erro
 	return affected, nil
 }
 
-func (s *Service) ListCategories(userID string, filters domain.ListFilters) ([]domain.Category, error) {
+func (s *Service) ListCategories(userID string, filters domain.ListFilters) ([]domain.Category, int64, error) {
 	if filters.Type != "" && !isValidType(filters.Type) {
-		return nil, apperror.BadRequest("type must be one of: Income, Expense")
+		return nil, 0, apperror.BadRequest("type must be one of: Income, Expense")
 	}
-	categories, err := s.repo.ListByUser(userID, filters)
+	categories, total, err := s.repo.ListByUser(userID, filters)
 	if err != nil {
-		return nil, apperror.Internal("failed to list categories", err)
+		return nil, 0, apperror.Internal("failed to list categories", err)
 	}
-	return categories, nil
+	return categories, total, nil
 }
 
 func validateCategory(name, typ, icon string) error {
