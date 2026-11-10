@@ -9,6 +9,8 @@ import (
 	accountRepo "github.com/mufarasyid/alurkasku/server/internal/modules/account/repository"
 	accountRoute "github.com/mufarasyid/alurkasku/server/internal/modules/account/route"
 	accountService "github.com/mufarasyid/alurkasku/server/internal/modules/account/service"
+	adminRoute "github.com/mufarasyid/alurkasku/server/internal/modules/admin/route"
+	adminService "github.com/mufarasyid/alurkasku/server/internal/modules/admin/service"
 	authDomain "github.com/mufarasyid/alurkasku/server/internal/modules/auth/domain"
 	authRepo "github.com/mufarasyid/alurkasku/server/internal/modules/auth/repository"
 	authRoute "github.com/mufarasyid/alurkasku/server/internal/modules/auth/route"
@@ -96,7 +98,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	accountSvc := accountService.New(accountRepository)
 
 	transactionRepository := transactionRepo.NewPostgresRepository(postgres.DB)
-	transactionSvc := transactionService.New(transactionRepository, accountRepository, categoryRepository)
+	transactionSvc := transactionService.New(transactionRepository, accountRepository, categoryRepository, userRepository)
 
 	transferRepository := transferRepo.NewPostgresRepository(postgres.DB)
 	transferSvc := transferService.New(transferRepository, accountRepository)
@@ -122,6 +124,9 @@ func NewApp(cfg *config.Config) (*App, error) {
 	subRepo := subRepo.NewPostgresRepository(postgres.DB)
 	subSvc := subService.New(subRepo, userRepository)
 	subRoute.Setup(r, subSvc, logMiddleware, middleware.Auth(jwtMgr))
+
+	adminSvc := adminService.New(userSvc, accountSvc, transactionSvc, budgetSvc, categorySvc, subSvc)
+	adminRoute.Setup(r, adminSvc, logMiddleware, middleware.Auth(jwtMgr))
 
 	// Global middleware stack (outermost applied last)
 	handler := middleware.JSON(r.Handler())

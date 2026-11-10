@@ -10,6 +10,7 @@ import (
 	"github.com/mufarasyid/alurkasku/server/internal/modules/user/validate"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/apperror"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/httpx"
+	"github.com/mufarasyid/alurkasku/server/internal/shared/middleware"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/response"
 )
 
@@ -19,6 +20,27 @@ type Handler struct {
 
 func New(svc *service.Service) *Handler {
 	return &Handler{svc: svc}
+}
+
+func actorFrom(r *http.Request) (id, role string) {
+	claims, ok := middleware.ClaimsFrom(r.Context())
+	if !ok || claims == nil {
+		return "", ""
+	}
+	return claims.UserID, claims.Role
+}
+
+func (h *Handler) requireSelfOrAdmin(w http.ResponseWriter, r *http.Request, targetID string) bool {
+	id, role := actorFrom(r)
+	if id == "" {
+		httpx.WriteError(w, apperror.Unauthorized("authentication required"), http.StatusUnauthorized)
+		return false
+	}
+	if role == "admin" || id == targetID {
+		return true
+	}
+	httpx.WriteError(w, apperror.Forbidden("you can only manage your own account"), http.StatusForbidden)
+	return false
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +70,9 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, apperror.BadRequest("invalid user id"), http.StatusBadRequest)
 		return
 	}
+	if !h.requireSelfOrAdmin(w, r, id) {
+		return
+	}
 
 	u, err := h.svc.GetUser(id)
 	if err != nil {
@@ -73,6 +98,15 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	if err := validate.UpdateUser(req); err != nil {
 		httpx.WriteError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	_, role := actorFrom(r)
+	if req.Role != "" && role != "admin" {
+		httpx.WriteError(w, apperror.Forbidden("only admins can change roles"), http.StatusForbidden)
+		return
+	}
+	if !h.requireSelfOrAdmin(w, r, id) {
 		return
 	}
 
@@ -120,8 +154,13 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		pageSize = n
 	}
 
+	filters := domain.ListFilters{
+		Query: r.URL.Query().Get("q"),
+		Role:  r.URL.Query().Get("role"),
+	}
+
 	offset := (page - 1) * pageSize
-	users, total, err := h.svc.ListUsers(offset, pageSize)
+	users, total, err := h.svc.ListUsers(offset, pageSize, filters)
 	if err != nil {
 		httpx.WriteError(w, apperror.Internal("failed to list users", err), http.StatusInternalServerError)
 		return

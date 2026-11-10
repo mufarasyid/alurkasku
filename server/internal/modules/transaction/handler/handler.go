@@ -60,7 +60,7 @@ func (h *Handler) ListTransactions(w http.ResponseWriter, r *http.Request) {
 		PageSize: pageSize,
 	}
 	if v := r.URL.Query().Get("period"); v != "" {
-		from, to, err := service.PeriodWindow(v)
+		from, to, err := h.svc.PeriodWindowFor(userIDFrom(r), v)
 		if err != nil {
 			httpx.WriteError(w, err, http.StatusBadRequest)
 			return

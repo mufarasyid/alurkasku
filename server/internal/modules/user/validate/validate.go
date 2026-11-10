@@ -45,6 +45,21 @@ func UpdateUser(req domain.UpdateUserRequest) error {
 			return apperror.BadRequest("invalid email format")
 		}
 	}
+	if strings.TrimSpace(req.Role) != "" {
+		hasUpdate = true
+		if !domain.ValidRole(req.Role) {
+			return apperror.BadRequest("role must be admin or user")
+		}
+	}
+	if req.PaydayDay != nil {
+		hasUpdate = true
+		if *req.PaydayDay < 1 || *req.PaydayDay > 31 {
+			return apperror.BadRequest("payday_day must be between 1 and 31")
+		}
+	}
+	if req.ClearPaydayDay {
+		hasUpdate = true
+	}
 	if !hasUpdate {
 		return apperror.BadRequest("no fields to update")
 	}

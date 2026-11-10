@@ -7,6 +7,7 @@ import (
 	"github.com/mufarasyid/alurkasku/server/internal/modules/transaction/domain"
 	accountDomain "github.com/mufarasyid/alurkasku/server/internal/modules/account/domain"
 	catDomain "github.com/mufarasyid/alurkasku/server/internal/modules/category/domain"
+	userDomain "github.com/mufarasyid/alurkasku/server/internal/modules/user/domain"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/apperror"
 	"github.com/mufarasyid/alurkasku/server/internal/shared/httpx"
 )
@@ -15,10 +16,11 @@ type Service struct {
 	repo         domain.TransactionRepository
 	accountRepo  accountDomain.AccountRepository
 	categoryRepo catDomain.CategoryRepository
+	userRepo     userDomain.UserRepository
 }
 
-func New(repo domain.TransactionRepository, accountRepo accountDomain.AccountRepository, categoryRepo catDomain.CategoryRepository) *Service {
-	return &Service{repo: repo, accountRepo: accountRepo, categoryRepo: categoryRepo}
+func New(repo domain.TransactionRepository, accountRepo accountDomain.AccountRepository, categoryRepo catDomain.CategoryRepository, userRepo userDomain.UserRepository) *Service {
+	return &Service{repo: repo, accountRepo: accountRepo, categoryRepo: categoryRepo, userRepo: userRepo}
 }
 
 func (s *Service) CreateTransaction(userID string, req domain.CreateTransactionRequest) (*domain.Transaction, error) {
@@ -96,7 +98,7 @@ func (s *Service) ListTransactions(userID string, filters domain.ListFilters) ([
 }
 
 func (s *Service) GetOverview(userID, period string) (*domain.OverviewResponse, error) {
-	from, to, err := PeriodWindow(period)
+	from, to, err := s.PeriodWindowFor(userID, period)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +141,7 @@ func (s *Service) GetOverview(userID, period string) (*domain.OverviewResponse, 
 }
 
 func (s *Service) GetBreakdown(userID, period string) ([]domain.CategorySum, error) {
-	from, to, err := PeriodWindow(period)
+	from, to, err := s.PeriodWindowFor(userID, period)
 	if err != nil {
 		return nil, err
 	}
@@ -159,22 +161,88 @@ func (s *Service) GetBreakdown(userID, period string) ([]domain.CategorySum, err
 	return sums, nil
 }
 
-func PeriodWindow(period string) (time.Time, time.Time, error) {
+// PeriodWindowFor returns the [from, to) window for period, shifted to the
+// user's payday cycle when set. Calendar-month behavior is the default.
+func (s *Service) PeriodWindowFor(userID, period string) (time.Time, time.Time, error) {
+	payday := 0
+	if user, err := s.userRepo.GetByID(userID); err == nil && user != nil && user.PaydayDay != nil {
+		payday = *user.PaydayDay
+	}
+
 	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	loc := now.Location()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	if payday < 1 || payday > 31 {
+		switch period {
+		case "this-month":
+			return monthStart, monthStart.AddDate(0, 1, 0), nil
+		case "last-month":
+			return monthStart.AddDate(0, -1, 0), monthStart, nil
+		case "last-3-months":
+			return monthStart.AddDate(0, -2, 0), monthStart.AddDate(0, 1, 0), nil
+		case "this-year":
+			yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, loc)
+			return yearStart, yearStart.AddDate(1, 0, 0), nil
+		default:
+			return time.Time{}, time.Time{}, apperror.BadRequest("period must be one of: this-month, last-month, last-3-months, this-year")
+		}
+	}
+
+	start := paydayStart(now, payday, loc)
 	switch period {
 	case "this-month":
-		return monthStart, monthStart.AddDate(0, 1, 0), nil
+		return start, nextPayday(start, payday, loc), nil
 	case "last-month":
-		return monthStart.AddDate(0, -1, 0), monthStart, nil
+		return prevPayday(start, payday, loc), start, nil
 	case "last-3-months":
-		return monthStart.AddDate(0, -2, 0), monthStart.AddDate(0, 1, 0), nil
+		return prevPayday(prevPayday(start, payday, loc), payday, loc), nextPayday(start, payday, loc), nil
 	case "this-year":
-		yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+		yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, loc)
 		return yearStart, yearStart.AddDate(1, 0, 0), nil
 	default:
 		return time.Time{}, time.Time{}, apperror.BadRequest("period must be one of: this-month, last-month, last-3-months, this-year")
 	}
+}
+
+func clampDay(year int, month time.Month, day int, loc *time.Location) int {
+	if day < 1 {
+		day = 1
+	}
+	last := time.Date(year, month+1, 0, 0, 0, 0, 0, loc).Day()
+	if day > last {
+		return last
+	}
+	return day
+}
+
+func paydayStart(now time.Time, payday int, loc *time.Location) time.Time {
+	day := clampDay(now.Year(), now.Month(), payday, loc)
+	start := time.Date(now.Year(), now.Month(), day, 0, 0, 0, 0, loc)
+	if !start.After(now) {
+		return start
+	}
+	prevYear, prevMonth := shiftMonth(now, -1)
+	day = clampDay(prevYear, prevMonth, payday, loc)
+	return time.Date(prevYear, prevMonth, day, 0, 0, 0, 0, loc)
+}
+
+func shiftMonth(start time.Time, months int) (int, time.Month) {
+	total := int(start.Month()) - 1 + months
+	year := start.Year() + (total / 12)
+	month := time.Month(((total % 12) + 12) % 12) + 1
+	return year, month
+}
+
+func nextPayday(start time.Time, payday int, loc *time.Location) time.Time {
+	year, month := shiftMonth(start, 1)
+	day := clampDay(year, month, payday, loc)
+	return time.Date(year, month, day, 0, 0, 0, 0, loc)
+}
+
+func prevPayday(start time.Time, payday int, loc *time.Location) time.Time {
+	year, month := shiftMonth(start, -1)
+	day := clampDay(year, month, payday, loc)
+	return time.Date(year, month, day, 0, 0, 0, 0, loc)
 }
 
 func deltaPct(cur, prev int64) *float64 {

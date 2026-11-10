@@ -24,9 +24,9 @@ type fakeRepo struct {
 	deleteParticipant bool
 }
 
-func (f *fakeRepo) CreateGroup(*domain.Group, []domain.Participant) error { return nil }
+func (f *fakeRepo) CreateGroup(*domain.Group, []domain.Participant) error      { return nil }
 func (f *fakeRepo) ListGroups(string, int, int) ([]domain.Group, int64, error) { return nil, 0, nil }
-func (f *fakeRepo) GetGroup(string, string) (*domain.Group, error)        { return f.group, nil }
+func (f *fakeRepo) GetGroup(string, string) (*domain.Group, error)             { return f.group, nil }
 func (f *fakeRepo) UpdateGroup(string, string, string, string) (*domain.Group, error) {
 	return f.group, nil
 }
@@ -46,8 +46,10 @@ func (f *fakeRepo) LinkParticipant(string, string, string) (*domain.Participant,
 	return &domain.Participant{ID: testMemberID}, nil
 }
 func (f *fakeRepo) CreateExpense(*domain.Expense, []domain.Split) error { return nil }
-func (f *fakeRepo) ListExpenses(string, int, int) ([]domain.Expense, int64, error) { return nil, 0, nil }
-func (f *fakeRepo) GetExpense(string, string) (*domain.Expense, error)  { return f.expense, nil }
+func (f *fakeRepo) ListExpenses(string, int, int) ([]domain.Expense, int64, error) {
+	return nil, 0, nil
+}
+func (f *fakeRepo) GetExpense(string, string) (*domain.Expense, error) { return f.expense, nil }
 func (f *fakeRepo) DeleteExpense(string, string) error {
 	f.deleteExpense = true
 	return nil
@@ -76,7 +78,7 @@ func (f *fakeUserRepo) GetByEmail(string) (*userDomain.User, error) {
 }
 func (f *fakeUserRepo) Update(*userDomain.User) error { return nil }
 func (f *fakeUserRepo) Delete(string) error           { return nil }
-func (f *fakeUserRepo) List(int, int) ([]userDomain.User, int64, error) {
+func (f *fakeUserRepo) List(int, int, userDomain.ListFilters) ([]userDomain.User, int64, error) {
 	return nil, 0, nil
 }
 

@@ -21,6 +21,10 @@ build:
 migrate:
 	go run ./cmd/migrate
 
+# Promote an existing user to admin (or back to user): make promote-admin email=admin@example.com
+promote-admin:
+	go run ./cmd/promote-admin -email $(email) -role $(or role,admin)
+
 docker-up:
 	docker compose up -d
 

@@ -78,6 +78,12 @@ func (s *Service) UpdateUser(id string, req domain.UpdateUserRequest) (*domain.U
 	if req.Role != "" {
 		u.Role = domain.Role(req.Role)
 	}
+	if req.ClearPaydayDay {
+		u.PaydayDay = nil
+	} else if req.PaydayDay != nil {
+		day := *req.PaydayDay
+		u.PaydayDay = &day
+	}
 
 	if err := s.repo.Update(u); err != nil {
 		return nil, apperror.Internal("failed to update user", err)
@@ -95,6 +101,6 @@ func (s *Service) DeleteUser(id string) error {
 	return nil
 }
 
-func (s *Service) ListUsers(offset, limit int) ([]domain.User, int64, error) {
-	return s.repo.List(offset, limit)
+func (s *Service) ListUsers(offset, limit int, filters domain.ListFilters) ([]domain.User, int64, error) {
+	return s.repo.List(offset, limit, filters)
 }

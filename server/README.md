@@ -19,6 +19,12 @@ internal/
     auth/               # Fitur: Authentication (register, login, refresh, logout)
       domain/ repository/ service/ handler/ route/
     account/            # Fitur: Accounts (per-user, CRUD + bulk delete)
+      domain/           # Model, interface repository, interface service
+      repository/       # Implementasi repository (PostgreSQL)
+      service/          # Business logic
+      handler/          # HTTP handler
+      route/            # Pendaftaran route
+    admin/              # Fitur: Admin console (list/detail/update/delete user + read-only data keuangan user)
       domain/ repository/ service/ handler/ route/
     category/           # Fitur: Categories (per-user, CRUD + bulk delete + seed default)
       domain/ repository/ service/ handler/ route/
@@ -62,11 +68,22 @@ README.md               # Dokumentasi ini
 | POST | `/api/v1/auth/login` | Masuk, dapat access + refresh token |
 | POST | `/api/v1/auth/refresh` | Perbarui access token pakai refresh token |
 | POST | `/api/v1/auth/logout` | Hapus refresh token |
-| POST | `/api/v1/users` | Buat user baru |
-| GET | `/api/v1/users` | List user (pagination) |
-| GET | `/api/v1/users/{id}` | Detail user |
-| PUT | `/api/v1/users/{id}` | Update user |
-| DELETE | `/api/v1/users/{id}` | Hapus user (soft delete) |
+| POST | `/api/v1/users` | Buat user baru (admin) |
+| GET | `/api/v1/users` | List user, filter `?q=` dan `?role=admin\|user` (admin) |
+| GET | `/api/v1/users/{id}` | Detail user (pemilik atau admin) |
+| PUT | `/api/v1/users/{id}` | Update user; field `role` hanya boleh diubah admin (pemilik atau admin) |
+| DELETE | `/api/v1/users/{id}` | Hapus user, soft delete (admin) |
+| GET | `/api/v1/admin/users` | List semua user `?page=&page_size=&q=&role=` (admin) |
+| GET | `/api/v1/admin/users/{id}` | Detail user (admin) |
+| PUT | `/api/v1/admin/users/{id}` | Update user, termasuk `role`; admin tidak bisa ubah role diri sendiri (admin) |
+| DELETE | `/api/v1/admin/users/{id}` | Hapus user, tidak bisa menghapus diri sendiri (admin) |
+| GET | `/api/v1/admin/users/{id}/accounts` | Lihat accounts milik user `?page=&page_size=&q=&type=` (admin, read-only) |
+| GET | `/api/v1/admin/users/{id}/transactions` | Lihat transactions milik user `?page=&page_size=&q=&type=&period=` (admin, read-only) |
+| GET | `/api/v1/admin/users/{id}/transactions/overview` | Ringkasan income/expense untuk period `?period=this-month\|last-month\|last-3-months\|this-year` (admin, read-only) |
+| GET | `/api/v1/admin/users/{id}/transactions/breakdown` | Expense per category untuk period (admin, read-only) |
+| GET | `/api/v1/admin/users/{id}/budgets` | Lihat budgets milik user `?page=&page_size=&q=&period=` (admin, read-only) |
+| GET | `/api/v1/admin/users/{id}/categories` | Lihat categories milik user `?page=&page_size=&q=&type=` (admin, read-only) |
+| GET | `/api/v1/admin/users/{id}/subscriptions` | Lihat subscriptions milik user (admin, read-only) |
 | POST | `/api/v1/subscriptions` | Buat subscription (user/admin) |
 | GET | `/api/v1/subscriptions/{id}` | Detail subscription |
 | GET | `/api/v1/subscriptions/me` | List subscription milik user yang login |
@@ -102,11 +119,24 @@ README.md               # Dokumentasi ini
 
 **Catatan:** `subscriptions` memiliki `start_date` dan `end_date`; user/auth mengelola via `role` (`admin`/`user`). Soft delete hanya di `users` (`deleted_at`); `subscriptions` hard delete.
 
+**Admin (`/api/v1/admin/...`):** semua endpoint admin dilindungi `RequireAdmin` (JWT `role` harus `admin`). User biasa tidak bisa mengakses endpoint ini maupun list `/api/v1/users`. Pengelolaan user (list/detail/update/delete) dilakukan admin lewat `/api/v1/admin/users`; perubahan `role` oleh user biasa ditolak. Endpoint `/api/v1/admin/users/{id}/*` hanya membaca (read-only) data keuangan milik user tertentu — admin tidak bisa mengubah data keuangan user lewat endpoint ini. Admin tidak bisa mengubah role diri sendiri dan tidak bisa menghapus akun sendiri lewat console. Admin boleh mengubah role admin lain, termasuk melepas role admin — pastikan selalu tersisa minimal satu admin.
+
+**Mengangkat admin pertama:** daftar seperti biasa, lalu jalankan:
+
+```bash
+go run ./cmd/promote-admin -email nama@example.com -role admin
+# atau: make promote-admin email=nama@example.com
+```
+
+Token JWT yang sudah terbit tetap membawa role lama sampai user login ulang (role dibaca dari claims saat request; client harus re-login setelah promosi).
+
 **Accounts, categories, budgets** bersifat per-user — semua query di-scope ke `user_id` dari JWT, jadi user hanya bisa melihat dan mengubah datanya sendiri. List endpoint mengembalikan **seluruh** data user (tanpa pagination) karena dataset personal finance kecil dan frontend melakukan search/filter/sort/pagination di sisi client; gunakan query param `type`/`period`/`q` untuk filter di server. `icon` disimpan sebagai nama string (mis. `"Utensils"`) yang dimapping ke komponen icon di frontend. Nominal (`balance`, `limit`, `spent`, `amount`) disimpan sebagai `BIGINT` rupiah tanpa desimal. Budget mereferensikan category via `category_id` (nullable, `ON DELETE SET NULL`); response budget menyertakan nama kategori lewat JOIN (`category`). `spent` budget tidak disimpan sebagai counter; server menghitungnya dinamis dari transaction `Expense` pada kategori budget dalam periode berjalan (week/month/year). Status budget (On track / Warning / Over) dihitung di client dari `spent` dan `limit`. Saat register, user baru otomatis mendapat 14 kategori default; user lama mendapat backfill yang sama dari migration `006_create_categories`.
 
 **Accounts** punya tiga tipe: `Bank`, `Wallet`, `Cash` (sejak migration `009`). **Transfer** hanya antar rekening milik sendiri: source berkurang `amount + fee`, destination bertambah `amount`, semuanya dalam satu DB transaction; `fee` bersifat opsional dan tidak dikreditkan ke rekening mana pun. **Withdrawals** (tarik tunai) adalah fitur terpisah (`/api/v1/withdrawals`): source harus `Bank`/`Wallet`, destination harus `Cash`. Keduanya tidak memengaruhi laporan income/expense. Menghapus account menghapus riwayat transaction & transfer miliknya (`ON DELETE CASCADE`).
 
 **Transactions** juga per-user. Setiap create memvalidasi kepemilikan `account_id`/`category_id` (category harus se-`type` dengan transaksi), menolak `amount <= 0`, dan menolak expense yang melebihi saldo account. Insert + update saldo account terjadi dalam satu DB transaction. Tidak ada `PUT`/`DELETE` untuk transactions saat ini — edit/hapus belum diekspos ke API.
+
+**Payday cycle (migration `012`):** `users.payday_day` (`1-31`, nullable) membuat `this-month`/`last-month`/`last-3-months` dihitung dari siklus gajian (mis. payday 25 → 25 Okt sampai 24 Nov untuk November), termasuk pada `?period=` transactions list dan overview. `this-year` tetap kalender; budget "spent" juga tetap kalender. Set/hapus lewat `PUT /api/v1/users/{id}` (`payday_day` / `clear_payday_day`) atau UI Settings → "Payday cycle".
 
 ## Cara Menjalankan Project (Pertama Kali)
 
