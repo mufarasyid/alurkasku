@@ -144,7 +144,7 @@ const ActivityTransactionCard = ({
 
   return (
     <CardDashboard
-      className={cn("border-slate-300 text-slate-950", className)}
+      className={cn("border-border text-primary", className)}
       title="Activity Transactions"
       description="Latest transactions this period"
       action={

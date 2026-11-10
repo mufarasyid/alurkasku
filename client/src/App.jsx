@@ -9,6 +9,17 @@ import ProfilePage from "./pages/dashboard/ProfilePage";
 import CategoriesPage from "./pages/dashboard/CategoriesPage";
 import AccountsPage from "./pages/dashboard/AccountsPage";
 import BudgetsPage from "./pages/dashboard/BudgetsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminUserDetailPage from "./pages/admin/AdminUserDetailPage";
+import { getStoredUser } from "./lib/auth-storage";
+
+const RequireAdmin = ({ children }) => {
+  const user = getStoredUser();
+  if (user?.role !== "admin") {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
 
 const App = () => {
   return (
@@ -27,6 +38,22 @@ const App = () => {
           <Route path="patungan/:id" element={<Navigate to="/dashboard" replace />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route
+            path="admin"
+            element={
+              <RequireAdmin>
+                <AdminUsersPage />
+              </RequireAdmin>
+            }
+          />
+          <Route
+            path="admin/:id"
+            element={
+              <RequireAdmin>
+                <AdminUserDetailPage />
+              </RequireAdmin>
+            }
+          />
         </Route>
       </Routes>
     </>

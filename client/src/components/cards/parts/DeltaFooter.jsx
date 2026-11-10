@@ -4,7 +4,7 @@ import { cn } from "../../../lib/utils";
 const DeltaFooter = ({ deltaPct, className }) => {
   if (deltaPct == null) {
     return (
-      <div className={cn("flex items-center gap-1 text-slate-600", className)}>
+      <div className={cn("flex items-center gap-1 text-muted-foreground", className)}>
         <Minus size={15} aria-hidden="true" />
         <p>No data from previous period</p>
       </div>
@@ -26,7 +26,7 @@ const DeltaFooter = ({ deltaPct, className }) => {
       <p className="tabular-nums">
         {positive ? "+" : ""}
         {deltaPct.toFixed(1)}%
-        <span className="text-slate-600 dark:text-muted-foreground"> vs previous period</span>
+        <span className="text-muted-foreground"> vs previous period</span>
       </p>
     </div>
   );

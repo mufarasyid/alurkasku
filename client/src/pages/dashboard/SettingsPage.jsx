@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { LogOut } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -15,11 +15,13 @@ import {
   getStoredUser,
   getRefreshToken,
   clearSession,
+  updateStoredUser,
 } from "../../lib/auth-storage";
 import {
   getPreferences,
   updatePreferences,
 } from "../../lib/preferences";
+import { getUser, updateUser } from "../../services/user";
 import { logout } from "../../services/auth";
 
 const PERIOD_OPTIONS = [
@@ -27,6 +29,14 @@ const PERIOD_OPTIONS = [
   { key: "last-month", label: "Last Month" },
   { key: "last-3-months", label: "Last 3 Months" },
   { key: "this-year", label: "This Year" },
+];
+
+const PAYDAY_OPTIONS = [
+  { value: "0", label: "Not set (calendar months)" },
+  ...Array.from({ length: 31 }, (_, index) => ({
+    value: String(index + 1),
+    label: `Day ${index + 1} of each month`,
+  })),
 ];
 
 const Toggle = ({ label, description, checked, onChange }) => (
@@ -61,6 +71,54 @@ const SettingsPage = () => {
   const user = getStoredUser() ?? {};
   const [preferences, setPreferences] = useState(getPreferences);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [payday, setPayday] = useState("0");
+  const [paydayLoading, setPaydayLoading] = useState(() => Boolean(getStoredUser()?.id));
+  const [paydaySaving, setPaydaySaving] = useState(false);
+  const [paydayError, setPaydayError] = useState("");
+  const [paydaySaved, setPaydaySaved] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const stored = getStoredUser();
+    if (!stored?.id) return undefined;
+    getUser(stored.id)
+      .then((res) => {
+        if (!active) return;
+        setPayday(res?.data?.payday_day ? String(res.data.payday_day) : "0");
+      })
+      .catch(() => {
+        if (active) setPaydayError("Failed to load your payday setting.");
+      })
+      .finally(() => {
+        if (active) setPaydayLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handlePaydayChange = async (value) => {
+    setPayday(value);
+    setPaydaySaved(false);
+    setPaydayError("");
+    setPaydaySaving(true);
+    try {
+      const stored = getStoredUser();
+      const payload =
+        value === "0"
+          ? { clear_payday_day: true }
+          : { payday_day: Number(value) };
+      await updateUser(stored.id, payload);
+      updateStoredUser({
+        payday_day: value === "0" ? null : Number(value),
+      });
+      setPaydaySaved(true);
+    } catch (err) {
+      setPaydayError(err.message || "Failed to save payday setting.");
+    } finally {
+      setPaydaySaving(false);
+    }
+  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -84,6 +142,48 @@ const SettingsPage = () => {
           Customize how Alurkasku looks and behaves for you.
         </p>
       </div>
+
+      <CardDashboard
+        title="Payday cycle"
+        description="Monthly reports follow your pay cycle instead of calendar months."
+      >
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="settings-payday" className="text-sm font-medium">
+            Payday
+          </label>
+          {paydayLoading ? (
+            <div className="h-9 w-full animate-pulse rounded-md bg-muted sm:max-w-xs" aria-busy="true" />
+          ) : (
+            <Select value={payday} onValueChange={handlePaydayChange} disabled={paydaySaving}>
+              <SelectTrigger id="settings-payday" className="w-full sm:max-w-xs">
+                <SelectValue placeholder="Select payday" />
+              </SelectTrigger>
+              <SelectContent side="bottom" sideOffset={6}>
+                {PAYDAY_OPTIONS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Affects &quot;This month&quot;, &quot;Last month&quot; and &quot;Last 3 months&quot; on
+            Transactions and reports: from the previous payday until the day before the next.
+            &quot;This year&quot; stays calendar. Budgets are not affected yet.
+          </p>
+          {paydayError && (
+            <p role="alert" className="text-xs text-destructive">
+              {paydayError}
+            </p>
+          )}
+          {paydaySaved && !paydayError && (
+            <p role="status" className="text-xs text-emerald-600 dark:text-emerald-400">
+              Saved. This month now starts from your payday.
+            </p>
+          )}
+        </div>
+      </CardDashboard>
 
       <CardDashboard
         title="Preferences"

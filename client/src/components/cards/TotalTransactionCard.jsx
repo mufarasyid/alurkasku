@@ -7,7 +7,7 @@ import { formatIDR } from "../../lib/format";
 
 const TotalTransactionCard = ({ data, isLoading, className }) => (
   <CardDashboard
-    className={cn("border-slate-300 text-slate-950", className)}
+    className={cn("border-border text-primary", className)}
     footer={<DeltaFooter deltaPct={data?.delta_pct} />}
     title="Total Transaction"
     description="Total amount and count of all transactions."

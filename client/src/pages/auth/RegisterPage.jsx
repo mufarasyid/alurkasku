@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import FormAuth from "../../components/templates/FormAuth";
+import AuthBrandPanel from "../../components/templates/AuthBrandPanel";
 import { saveSession } from "../../lib/auth-storage";
 import { register } from "../../services/auth";
 
@@ -26,7 +27,7 @@ const RegisterPage = () => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen">
-      <div className="hidden md:block bg-primary"></div>
+      <AuthBrandPanel />
       <FormAuth
         title="Create an account"
         subtitle="Access your account and manage your preferences"

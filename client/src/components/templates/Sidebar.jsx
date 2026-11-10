@@ -16,12 +16,14 @@ import {
 } from "lucide-react";
 
 import sidebarData from "../../assets/data/sidebar-data";
+import { getStoredUser } from "../../lib/auth-storage";
 import {
   Dropdown,
   DropdownTrigger,
   DropdownContent,
   DropdownLabel,
 } from "../ui/dropdown";
+import alurkaskuLogo from "../../assets/alurkasku.svg";
 
 const iconMap = {
   Dashboard: LayoutDashboard,
@@ -53,6 +55,15 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
   // Collapsed rail has no room for a submenu, so children open in a flyout.
   const [flyoutPosition, setFlyoutPosition] = useState({ top: 0, left: 0 });
 
+  // Admin-only entries are hidden from everyone else (routes are guarded too).
+  const isAdmin = getStoredUser()?.role === "admin";
+  const visibleSections = sidebarData
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.adminOnly || isAdmin),
+    }))
+    .filter((section) => section.items.length > 0);
+
   const measureFlyout = (childCount) => (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const estimatedHeight = childCount * 42 + 58;
@@ -72,8 +83,12 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
           collapsed ? "justify-center" : "px-6"
         }`}
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-400 text-primary">
-          <Wallet size={22} strokeWidth={2.5} />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white">
+          <img
+            src={alurkaskuLogo}
+            alt="Alurkasku"
+            className="h-full w-full object-contain"
+          />
         </div>
 
         {!collapsed && (
@@ -89,11 +104,11 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
           collapsed ? "px-2" : "px-4"
         }`}
       >
-        {sidebarData.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title}>
             {/* Section title */}
             {!collapsed && (
-              <h2 className="mb-3 px-3 text-[11px] font-bold tracking-[0.18em] text-white/40">
+              <h2 className="mb-3 px-3 text-[11px] font-bold tracking-[0.18em] text-white/55">
                 {section.title}
               </h2>
             )}
@@ -147,7 +162,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                           </span>
                           <Lock
                             size={14}
-                            className="shrink-0 text-white/40"
+                            className="shrink-0 text-white/55"
                             aria-hidden="true"
                           />
                         </>
@@ -180,7 +195,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                             <span
                               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
                                 parentActive
-                                  ? "bg-cyan-400/15 text-cyan-300"
+                                  ? "bg-gold/15 text-gold"
                                   : "bg-white/5 text-white/60 group-hover:text-white"
                               }`}
                             >
@@ -198,7 +213,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                               left: flyoutPosition.left,
                             }}
                           >
-                            <DropdownLabel className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">
+                            <DropdownLabel className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/55">
                               {item.title}
                             </DropdownLabel>
 
@@ -212,7 +227,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                                   className={({ isActive: childActive }) =>
                                     `block whitespace-nowrap rounded-md px-3 py-2 text-[13px] transition-colors ${
                                       childActive
-                                        ? "bg-cyan-400/10 font-semibold text-cyan-300"
+                                        ? "bg-gold/10 font-semibold text-gold"
                                         : "text-white/65 hover:bg-white/5 hover:text-white"
                                     }`
                                   }
@@ -241,7 +256,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                         <span
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
                             parentActive
-                              ? "bg-cyan-400/15 text-cyan-300"
+                              ? "bg-gold/15 text-gold"
                               : "bg-white/5 text-white/60 group-hover:text-white"
                           }`}
                         >
@@ -252,7 +267,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
 
                         <ChevronDown
                           size={16}
-                          className={`text-white/40 transition-transform duration-200 ${
+                          className={`text-white/55 transition-transform duration-200 ${
                             isExpanded ? "rotate-180" : ""
                           }`}
                         />
@@ -279,13 +294,13 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                                   className={() =>
                                     `relative block whitespace-nowrap rounded-lg px-3 py-2.5 text-[13px] transition-colors ${
                                       childActive
-                                        ? "bg-cyan-400/10 font-semibold text-cyan-300"
+                                        ? "bg-gold/10 font-semibold text-gold"
                                         : "text-white/50 hover:bg-white/5 hover:text-white/90"
                                     }`
                                   }
                                 >
                                   {childActive && (
-                                    <span className="absolute -left-6.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-cyan-400 ring-4 ring-primary" />
+                                    <span className="absolute -left-6.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-gold ring-4 ring-primary" />
                                   )}
 
                                   {child.title}
@@ -329,7 +344,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                           </span>
                           <Lock
                             size={14}
-                            className="shrink-0 text-white/40"
+                            className="shrink-0 text-white/55"
                             aria-hidden="true"
                           />
                         </>
@@ -351,7 +366,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                         collapsed ? "justify-center" : ""
                       } ${
                         active
-                          ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/10"
+                          ? "bg-gold text-gold-foreground shadow-lg shadow-black/30"
                           : "text-white/65 hover:bg-white/5 hover:text-white"
                       }`
                     }
@@ -361,7 +376,7 @@ const Sidebar = ({ collapsed = false, onNavigate }) => {
                         <span
                           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
                             active
-                              ? "bg-black/5 text-slate-950"
+                              ? "bg-primary/15 text-gold-foreground"
                               : "bg-white/5 text-white/60 group-hover:text-white"
                           }`}
                         >

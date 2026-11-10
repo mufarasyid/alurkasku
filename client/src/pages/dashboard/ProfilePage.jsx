@@ -129,7 +129,7 @@ const ProfilePage = () => {
         ) : (
           <form onSubmit={handleSave} className="flex flex-col gap-5">
             <div className="flex items-center gap-4">
-              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-cyan-400 text-lg font-bold text-slate-950">
+              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gold text-lg font-bold text-gold-foreground">
                 {initials}
               </div>
               <div className="min-w-0">

@@ -7,6 +7,7 @@ import {
   Tags,
   Settings,
   Users,
+  ShieldCheck,
 } from "lucide-react";
 
 export const sidebarData = [
@@ -77,6 +78,17 @@ export const sidebarData = [
             path: "/investments/gold",
           },
         ],
+      },
+    ],
+  },
+  {
+    title: "ADMINISTRATION",
+    items: [
+      {
+        title: "Members",
+        path: "/dashboard/admin",
+        icon: ShieldCheck,
+        adminOnly: true,
       },
     ],
   },

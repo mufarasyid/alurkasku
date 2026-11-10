@@ -121,7 +121,7 @@ const DashboardLayout = () => {
         }`}
       >
         {/* Header */}
-        <div className="h-20 w-full shrink-0 border-b border-black/10 flex items-center justify-between px-6">
+        <div className="h-20 w-full shrink-0 border-b border-border flex items-center justify-between px-6">
           <button
             type="button"
             onClick={toggleSidebar}
@@ -142,7 +142,7 @@ const DashboardLayout = () => {
               className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               aria-label={`Account menu for ${name}`}
             >
-              <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-cyan-400 text-sm font-bold text-slate-950">
+              <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gold text-sm font-bold text-gold-foreground">
                 {user.avatar ? (
                   <img
                     src={user.avatar}

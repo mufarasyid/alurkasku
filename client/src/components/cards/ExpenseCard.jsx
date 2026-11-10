@@ -5,15 +5,15 @@ import CardPlaceholder from "./parts/CardPlaceholder";
 const ExpenseCard = ({ className }) => (
   <CardDashboard
     className={cn(
-      "border-slate-300 bg-slate-200 text-slate-950",
+      "border-primary/15 bg-[#eef0f6] text-primary",
       className,
     )}
-    descriptionClassName="text-slate-600"
-    footer={<span className="text-slate-600">This month</span>}
+    descriptionClassName="text-primary/70"
+    footer={<span className="text-primary/70">This month</span>}
     title="Expenses"
     description="Spending by category"
   >
-    <CardPlaceholder className="border-slate-400/70 text-slate-600">
+    <CardPlaceholder className="border-primary/20 text-primary/70">
       Expense breakdown
     </CardPlaceholder>
   </CardDashboard>

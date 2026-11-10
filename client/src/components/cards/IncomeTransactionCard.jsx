@@ -8,11 +8,11 @@ import { formatIDR } from "../../lib/format";
 
 const IncomeTransactionCard = ({ data, isLoading, className }) => (
   <CardDashboard
-    className={cn("border-slate-300 text-slate-950", className)}
+    className={cn("border-border text-primary", className)}
     footer={<DeltaFooter deltaPct={data?.delta_pct} />}
     title={
       <div className="flex items-center gap-2">
-        <ArrowDownLeft size={17} className="text-slate-600" aria-hidden="true" />
+        <ArrowDownLeft size={17} className="text-muted-foreground" aria-hidden="true" />
         <span>Incomes</span>
       </div>
     }

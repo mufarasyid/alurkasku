@@ -10,7 +10,7 @@ const ExpenseBreakdownTransactionCard = ({ items = [], isLoading, className }) =
 
   return (
     <CardDashboard
-      className={cn("border-slate-300 text-slate-950", className)}
+      className={cn("border-border text-primary", className)}
       title="Expense Breakdown"
       description="Top spending categories this period"
     >
@@ -28,7 +28,7 @@ const ExpenseBreakdownTransactionCard = ({ items = [], isLoading, className }) =
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 py-10 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-10 text-center">
             <p className="text-sm font-medium text-muted-foreground">
               No expenses yet this period.
             </p>
